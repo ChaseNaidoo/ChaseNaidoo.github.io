@@ -148,6 +148,7 @@ main {
     padding-top: 50px;
     padding-bottom: 50px;
     margin-top: 50.99vh;
+    width: 100vw;
 }
 
 .feature_background {
@@ -226,7 +227,7 @@ main {
 }
 
 .about_background {
-    position: center;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -235,4 +236,5 @@ main {
     background-size: cover;
     background-position: center;
     z-index: -1;
+    padding-top: 50px;
 }
