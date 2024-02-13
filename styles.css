@@ -6,7 +6,7 @@
 
 body {
     font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-    background-color: beige;
+    background-color: transparent;
     overflow-x: hidden;
 }
 
@@ -222,14 +222,13 @@ main {
     background-color: #065c2a;
     transform: translate(0%, -50.99%);
     z-index: 13;
-    left: 50%;
     text-align: center;
-    position: center;
+    position: absolute;
     color: white;
-    padding-top: 50px;
-    padding-bottom: 50px;
     width: 100vw;
     height: 100vh;
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 #about h2 {
@@ -242,8 +241,8 @@ main {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     background-image: url('img/background3.jpg');
     background-size: cover;
     background-position: center;
@@ -252,7 +251,7 @@ main {
 }
 
 .about-card {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(3, 2, 27, 0.8);
     align-items: center;
     padding-left: 100px;
     padding-right: 100px;
@@ -271,6 +270,17 @@ main {
     padding-bottom: 20px;
 }
 
+.about-card h4 {
+    padding-bottom: 5px;
+    font-size: 1.5rem;
+    font-weight: 80;
+}
+
+.about-card p {
+    padding-bottom: 20px;
+    font-weight: 50;
+}
+
 .social-links {
     list-style-type: none;
     padding: 0;
@@ -279,6 +289,7 @@ main {
 .social-links li {
     display: inline-block;
     margin-right: 10px;
+    vertical-align: middle;
 }
 
 .social-links li:last-child {
@@ -292,20 +303,22 @@ main {
     color: #fff;
 }
 
-.linkedin-logo {
-    width: 20px;
-    height: 20px;
-    margin-right: 5px;
-}
-
-.github-logo {
-    width: 20px;
-    height: 20px;
-    margin-right: 5px;
-}
-
+.linkedin-logo,
+.github-logo,
 .twitter-logo {
     width: 20px;
     height: 20px;
     margin-right: 5px;
+    vertical-align: middle;
+    margin-bottom: 5px;
+}
+
+.github-link {
+    text-align: center;
+    margin-top: 5px;
+}
+
+.github-link .button {
+    margin-top: 15px;
+    margin-left: 41%;
 }
