@@ -291,3 +291,21 @@ main {
     text-decoration: none;
     color: #fff;
 }
+
+.linkedin-logo {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+}
+
+.github-logo {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+}
+
+.twitter-logo {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+}
