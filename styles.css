@@ -50,7 +50,7 @@ header ul a {
 }
 
 main {
-    position: relative;
+    position: relaabtive;
     background-color: #065c2a;
     height: 100vh;
     width: 100vw;
@@ -59,7 +59,7 @@ main {
 
 .text {
     z-index: 9;
-    top: calc(50% - 130px);
+    top: calc(50% - 0px);
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
@@ -77,11 +77,19 @@ main {
     font-weight: 800;
     font-size: 8ren;
     line-height: 0.88;
+    padding-top: 10px;
 }
 
 .background_layer1 {
     height: 100vh;
     width: 100vw;
+}
+
+video {
+    align-items: center;
+    margin-top: 50px;
+    border-radius: 30px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .button {
@@ -129,8 +137,8 @@ main {
 
 @media (min-width: 768px) {
   .button {
-        margin-top: 25%;
-        margin-left: 25%;
+        margin-top: 25px;
+        margin-left: 39%;
         position: absolute;
         font-size: 20px;
         min-width: 150px;
@@ -234,7 +242,8 @@ main {
 #about h2 {
     font-weight: 100;
     font-size: 4.5rem;
-    line-height: 0.88; 
+    line-height: 0.88;
+    margin-top: -30px;
 }
 
 .about_background {
@@ -256,7 +265,7 @@ main {
     padding-left: 100px;
     padding-right: 100px;
     padding-top: 20px;
-    padding-bottom: 40px;
+    padding-bottom: 20px;
     margin-top: 20px;
     margin-left: 10%;
     border-radius: 50px;
@@ -267,7 +276,7 @@ main {
     font-weight: 100;
     font-size: 2.5rem;
     line-height: 0.88;
-    padding-bottom: 20px;
+    padding-bottom: 10px;
 }
 
 .about-card h4 {
@@ -277,7 +286,7 @@ main {
 }
 
 .about-card p {
-    padding-bottom: 20px;
+    padding-bottom: 10px;
     font-weight: 50;
 }
 
