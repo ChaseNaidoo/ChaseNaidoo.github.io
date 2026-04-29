@@ -1,7 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, MeshTransmissionMaterial, Text } from "@react-three/drei";
+
+/** "low" = mobile / coarse pointer / reduced motion / low-memory heuristics — cheaper glass + fewer mesh segments. */
+const HeroPerfContext = createContext({ tier: "high" });
+
+function computeHeroTier() {
+  if (typeof window === "undefined") return "high";
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "low";
+  if (window.innerWidth < 780) return "low";
+  if (window.matchMedia("(pointer: coarse)").matches) return "low";
+  const mem = navigator.deviceMemory;
+  if (typeof mem === "number" && mem <= 4) return "low";
+  const { connection } = navigator;
+  if (connection && connection.saveData) return "low";
+  return "high";
+}
 
 const HERO_CANVAS_FONT =
   "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj4PVksj.ttf";
@@ -12,6 +35,76 @@ const HERO_HEADER_CLEARANCE_RATIO = 0.1;
 const HERO_LAYOUT_BOTTOM_AIR_RATIO = 0.035;
 /** Moves headline + hero plus downward (subtract from anchor Y — smaller Y sits lower on screen). */
 const HERO_LAYOUT_VERTICAL_OFFSET_RATIO = 0.1;
+
+const HERO_HEADLINE_LINES = ["DESIGN THAT", "ELEVATES", "YOUR", "AI PRODUCTS"];
+const FG_LINE_START_INDEX = 2;
+
+const HERO_COMMON_TEXT_PROPS = {
+  font: HERO_CANVAS_FONT,
+  anchorX: "left",
+  anchorY: "top",
+  letterSpacing: -0.045,
+  color: "#e9eef8"
+};
+
+/** Silhouette shared by hero orb + burst minis (`half`/`arm` match prior Extrude meshes). */
+const PLUS_OUTLINE_XY = [
+  [-0.34, 0.92],
+  [0.34, 0.92],
+  [0.34, 0.34],
+  [0.92, 0.34],
+  [0.92, -0.34],
+  [0.34, -0.34],
+  [0.34, -0.92],
+  [-0.34, -0.92],
+  [-0.34, -0.34],
+  [-0.92, -0.34],
+  [-0.92, 0.34],
+  [-0.34, 0.34]
+];
+
+function buildPlusShape(cornerRadius) {
+  const points = PLUS_OUTLINE_XY.map(([x, y]) => new THREE.Vector2(x, y));
+  const rounded = points.map((point, index) => {
+    const previous = points[(index - 1 + points.length) % points.length];
+    const next = points[(index + 1) % points.length];
+    const fromPrevious = previous.clone().sub(point).normalize();
+    const toNext = next.clone().sub(point).normalize();
+    return {
+      point,
+      start: point.clone().add(fromPrevious.multiplyScalar(cornerRadius)),
+      end: point.clone().add(toNext.multiplyScalar(cornerRadius))
+    };
+  });
+  const shape = new THREE.Shape();
+  shape.moveTo(rounded[0].start.x, rounded[0].start.y);
+  rounded.forEach((corner, index) => {
+    const nextCorner = rounded[(index + 1) % rounded.length];
+    shape.quadraticCurveTo(corner.point.x, corner.point.y, corner.end.x, corner.end.y);
+    shape.lineTo(nextCorner.start.x, nextCorner.start.y);
+  });
+  shape.closePath();
+  return shape;
+}
+
+/** Single factory for ExtrudeGeometry(+ center) — replaces duplicated builders in hero + SplitBurst */
+function extrudeRoundedPlus(cornerRadius, extrudeOverrides) {
+  const shape = buildPlusShape(cornerRadius);
+  const g = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.58,
+    bevelEnabled: true,
+    ...extrudeOverrides
+  });
+  g.center();
+  return g;
+}
+
+function readScrollProgress(scrollRef) {
+  const s = scrollRef?.current;
+  if (s === null || s === undefined) return 0;
+  if (typeof s !== "object") return typeof s === "number" ? s : 0;
+  return typeof s.progress === "number" ? s.progress : 0;
+}
 
 function PlusMesh({
   position,
@@ -25,76 +118,33 @@ function PlusMesh({
   onDragChange,
   onDragEnd,
   onDoubleActivate,
-  visible = true
+  visible = true,
+  qualityTier = "high"
 }) {
+  const low = qualityTier === "low";
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const dragOffsetRef = useRef(new THREE.Vector3(0, 0, 0));
   const pressRef = useRef({ x: 0, y: 0, moved: false, lastTapTs: -1000 });
   const { pointer } = useThree();
   const geometry = useMemo(() => {
-    const arm = 0.92;
-    const half = 0.34;
-    const radius = main ? 0.16 : micro ? 0.07 : 0.1;
-    const points = [
-      [-half, arm],
-      [half, arm],
-      [half, half],
-      [arm, half],
-      [arm, -half],
-      [half, -half],
-      [half, -arm],
-      [-half, -arm],
-      [-half, -half],
-      [-arm, -half],
-      [-arm, half],
-      [-half, half]
-    ].map(([x, y]) => new THREE.Vector2(x, y));
-
-    const shape = new THREE.Shape();
-    const rounded = points.map((point, index) => {
-      const previous = points[(index - 1 + points.length) % points.length];
-      const next = points[(index + 1) % points.length];
-      const fromPrevious = previous.clone().sub(point).normalize();
-      const toNext = next.clone().sub(point).normalize();
-
-      return {
-        point,
-        start: point.clone().add(fromPrevious.multiplyScalar(radius)),
-        end: point.clone().add(toNext.multiplyScalar(radius))
-      };
-    });
-
-    shape.moveTo(rounded[0].start.x, rounded[0].start.y);
-    rounded.forEach((corner, index) => {
-      const nextCorner = rounded[(index + 1) % rounded.length];
-      shape.quadraticCurveTo(corner.point.x, corner.point.y, corner.end.x, corner.end.y);
-      shape.lineTo(nextCorner.start.x, nextCorner.start.y);
-    });
-    shape.closePath();
-
-    const g = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.58,
-      bevelEnabled: true,
+    const r = main ? 0.16 : micro ? 0.07 : 0.1;
+    return extrudeRoundedPlus(r, {
       bevelThickness: main ? 0.18 : micro ? 0.11 : 0.18,
       bevelSize: main ? 0.18 : micro ? 0.11 : 0.18,
-      bevelSegments: main ? 32 : micro ? 3 : 10,
-      curveSegments: main ? 96 : micro ? 10 : 28
+      bevelSegments: main ? (low ? 10 : 32) : micro ? 3 : 10,
+      curveSegments: main ? (low ? 38 : 96) : micro ? 10 : 28
     });
-    g.center();
-    return g;
-  }, []);
+  }, [low, main, micro]);
+
+  useEffect(() => {
+    return () => geometry.dispose();
+  }, [geometry]);
 
   useFrame((state) => {
     if (!ref.current) return;
     const t = state.clock.getElapsedTime();
-    const scrollState = scrollRef?.current;
-    const scroll =
-      typeof scrollState === "object" && scrollState !== null
-        ? typeof scrollState.progress === "number"
-          ? scrollState.progress
-          : 0
-        : (scrollState ?? 0);
+    const scroll = readScrollProgress(scrollRef);
     ref.current.rotation.x = Math.sin(t * speed) * 0.16 + pointer.y * 0.12;
     ref.current.rotation.y = Math.cos(t * speed * 0.8) * 0.18 + pointer.x * 0.14;
     ref.current.rotation.z = Math.cos(t * speed * 0.55) * 0.08;
@@ -168,15 +218,15 @@ function PlusMesh({
         roughness={0}
         thickness={main ? 1.6 : micro ? 0.25 : 0.5}
         ior={main ? 1.08 : micro ? 1.03 : 1.04}
-        chromaticAberration={main ? 0.025 : 0}
-        anisotropy={0.08}
-        distortion={main ? 0.08 : 0}
-        distortionScale={main ? 0.18 : 0}
-        temporalDistortion={main ? 0.05 : 0}
+        chromaticAberration={main ? (low ? 0.012 : 0.025) : 0}
+        anisotropy={low ? 0.04 : 0.08}
+        distortion={main ? (low ? 0.04 : 0.08) : 0}
+        distortionScale={main ? (low ? 0.1 : 0.18) : 0}
+        temporalDistortion={main ? (low ? 0 : 0.05) : 0}
         backside
         backsideThickness={main ? 0.7 : micro ? 0.12 : 0.2}
-        samples={main ? 6 : micro ? 1 : 2}
-        resolution={main ? 512 : micro ? 64 : 96}
+        samples={main ? (low ? 3 : 5) : micro ? 1 : 2}
+        resolution={main ? (low ? 128 : 384) : micro ? 64 : 96}
         clearcoat={1}
         clearcoatRoughness={0}
         envMapIntensity={main ? 0.7 : micro ? 0.25 : 0.35}
@@ -186,7 +236,8 @@ function PlusMesh({
   );
 }
 
-function SplitBurst({ origin, viewport }) {
+function SplitBurst({ origin, viewport, qualityTier = "high" }) {
+  const low = qualityTier === "low";
   const refs = useRef([]);
   const dragRef = useRef([]);
   const particleState = useMemo(() => {
@@ -203,47 +254,20 @@ function SplitBurst({ origin, viewport }) {
     }));
   }, [origin]);
 
-  const geometry = useMemo(() => {
-    const arm = 0.92;
-    const half = 0.34;
-    const radius = 0.1;
-    const points = [
-      [-half, arm], [half, arm], [half, half], [arm, half], [arm, -half], [half, -half],
-      [half, -arm], [-half, -arm], [-half, -half], [-arm, -half], [-arm, half], [-half, half]
-    ].map(([x, y]) => new THREE.Vector2(x, y));
+  const geometry = useMemo(
+    () =>
+      extrudeRoundedPlus(0.1, {
+        bevelThickness: 0.11,
+        bevelSize: 0.11,
+        bevelSegments: low ? 2 : 3,
+        curveSegments: low ? 6 : 10
+      }),
+    [low]
+  );
 
-    const shape = new THREE.Shape();
-    const rounded = points.map((point, index) => {
-      const previous = points[(index - 1 + points.length) % points.length];
-      const next = points[(index + 1) % points.length];
-      const fromPrevious = previous.clone().sub(point).normalize();
-      const toNext = next.clone().sub(point).normalize();
-      return {
-        point,
-        start: point.clone().add(fromPrevious.multiplyScalar(radius)),
-        end: point.clone().add(toNext.multiplyScalar(radius))
-      };
-    });
-
-    shape.moveTo(rounded[0].start.x, rounded[0].start.y);
-    rounded.forEach((corner, index) => {
-      const nextCorner = rounded[(index + 1) % rounded.length];
-      shape.quadraticCurveTo(corner.point.x, corner.point.y, corner.end.x, corner.end.y);
-      shape.lineTo(nextCorner.start.x, nextCorner.start.y);
-    });
-    shape.closePath();
-
-    const g = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.58,
-      bevelEnabled: true,
-      bevelThickness: 0.11,
-      bevelSize: 0.11,
-      bevelSegments: 3,
-      curveSegments: 10
-    });
-    g.center();
-    return g;
-  }, []);
+  useEffect(() => {
+    return () => geometry.dispose();
+  }, [geometry]);
 
   useFrame((_, delta) => {
     const xLimit = viewport.width * 0.55;
@@ -330,7 +354,7 @@ function SplitBurst({ origin, viewport }) {
             roughness={0}
             thickness={0.26}
             ior={1.02}
-            chromaticAberration={0.25}
+            chromaticAberration={low ? 0.08 : 0.18}
             anisotropy={0.02}
             distortion={0}
             distortionScale={0}
@@ -338,8 +362,8 @@ function SplitBurst({ origin, viewport }) {
             clearcoat={1}
             clearcoatRoughness={0}
             envMapIntensity={0.35}
-            samples={10}
-            resolution={512}
+            samples={low ? 3 : 6}
+            resolution={low ? 128 : 256}
             color="#ffffff"
           />
         </mesh>
@@ -349,6 +373,7 @@ function SplitBurst({ origin, viewport }) {
 }
 
 function HeroCanvasScene({ scrollRef }) {
+  const { tier } = useContext(HeroPerfContext);
   const { viewport } = useThree();
   const sceneParallaxRef = useRef(null);
   const fontSize = Math.min(1.28, viewport.width * 0.145);
@@ -388,37 +413,6 @@ function HeroCanvasScene({ scrollRef }) {
     const wrappedY = y > yLimit ? -yLimit : y < -yLimit ? yLimit : y;
     return [wrappedX, wrappedY];
   }, [viewport.height, viewport.width]);
-
-  useFrame((_, delta) => {
-    const motion = motionRef.current;
-    if (motion.dragging || !motion.easing) return;
-
-    const currentX = plusPosition[0];
-    const currentY = plusPosition[1];
-    const [wrappedTargetX, wrappedTargetY] = wrapPosition(motion.targetX, motion.targetY);
-    motion.targetX = wrappedTargetX;
-    motion.targetY = wrappedTargetY;
-
-    motion.velocityX += (motion.targetX - currentX) * 10 * delta;
-    motion.velocityY += (motion.targetY - currentY) * 10 * delta;
-    const damping = Math.exp(-7 * delta);
-    motion.velocityX *= damping;
-    motion.velocityY *= damping;
-
-    let nextX = currentX + motion.velocityX * delta;
-    let nextY = currentY + motion.velocityY * delta;
-    [nextX, nextY] = wrapPosition(nextX, nextY);
-    setPlusPosition([nextX, nextY, plusPosition[2]]);
-
-    const distance = Math.hypot(motion.targetX - nextX, motion.targetY - nextY);
-    const speed = Math.hypot(motion.velocityX, motion.velocityY);
-    if (distance < 0.02 && speed < 0.02) {
-      motion.easing = false;
-      motion.velocityX = 0;
-      motion.velocityY = 0;
-      setPlusPosition([motion.targetX, motion.targetY, plusPosition[2]]);
-    }
-  });
 
   const handleDragStart = (ts) => {
     const motion = motionRef.current;
@@ -463,12 +457,45 @@ function HeroCanvasScene({ scrollRef }) {
     });
   };
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const data = scrollRef?.current;
-    const sy = typeof data === "object" && data ? data.scrollYPixels ?? 0 : 0;
-    const lift = (sy / Math.max(typeof window !== "undefined" ? window.innerHeight : 1, 1)) * viewport.height * 0.42;
+    const sy =
+      typeof data === "object" && data !== null && data !== undefined
+        ? data.scrollYPixels ?? 0
+        : 0;
+    const ih = typeof window !== "undefined" ? window.innerHeight : 1;
+    const lift = (sy / Math.max(ih, 1)) * viewport.height * 0.42;
     if (sceneParallaxRef.current) {
       sceneParallaxRef.current.position.y = lift;
+    }
+
+    const motion = motionRef.current;
+    if (motion.dragging || !motion.easing) return;
+
+    const currentX = plusPosition[0];
+    const currentY = plusPosition[1];
+    const [wrappedTargetX, wrappedTargetY] = wrapPosition(motion.targetX, motion.targetY);
+    motion.targetX = wrappedTargetX;
+    motion.targetY = wrappedTargetY;
+
+    motion.velocityX += (motion.targetX - currentX) * 10 * delta;
+    motion.velocityY += (motion.targetY - currentY) * 10 * delta;
+    const damping = Math.exp(-7 * delta);
+    motion.velocityX *= damping;
+    motion.velocityY *= damping;
+
+    let nextX = currentX + motion.velocityX * delta;
+    let nextY = currentY + motion.velocityY * delta;
+    [nextX, nextY] = wrapPosition(nextX, nextY);
+    setPlusPosition([nextX, nextY, plusPosition[2]]);
+
+    const distance = Math.hypot(motion.targetX - nextX, motion.targetY - nextY);
+    const speed = Math.hypot(motion.velocityX, motion.velocityY);
+    if (distance < 0.02 && speed < 0.02) {
+      motion.easing = false;
+      motion.velocityX = 0;
+      motion.velocityY = 0;
+      setPlusPosition([motion.targetX, motion.targetY, plusPosition[2]]);
     }
   });
 
@@ -477,18 +504,14 @@ function HeroCanvasScene({ scrollRef }) {
       <ambientLight intensity={0.8} />
       <directionalLight intensity={2.4} position={[3, 4, 5]} />
       <directionalLight intensity={1.2} position={[-3, -2, 3]} color="#e8f3ff" />
-      <Environment preset="studio" />
+      <Environment preset="studio" resolution={tier === "low" ? 128 : 512} />
 
-      {["DESIGN THAT", "ELEVATES", "YOUR", "AI PRODUCTS"].map((line, index) => (
+      {HERO_HEADLINE_LINES.map((line, index) => (
         <Text
-          key={line}
+          key={`bg-${line}`}
           position={[left, top - lineGap * index, -1.15]}
-          font={HERO_CANVAS_FONT}
           fontSize={fontSize}
-          anchorX="left"
-          anchorY="top"
-          letterSpacing={-0.045}
-          color="#e9eef8"
+          {...HERO_COMMON_TEXT_PROPS}
         >
           {line}
         </Text>
@@ -499,6 +522,7 @@ function HeroCanvasScene({ scrollRef }) {
         scale={1.45}
         speed={0.85}
         main
+        qualityTier={tier}
         scrollRef={scrollRef}
         draggable
         onDragStart={handleDragStart}
@@ -512,18 +536,15 @@ function HeroCanvasScene({ scrollRef }) {
           key={burstState.id}
           origin={burstState.origin}
           viewport={viewport}
+          qualityTier={tier}
         />
       ) : null}
-      {["YOUR", "AI PRODUCTS"].map((line, i) => (
+      {HERO_HEADLINE_LINES.slice(FG_LINE_START_INDEX).map((line, i) => (
         <Text
           key={`fg-${line}`}
-          position={[left, top - lineGap * (i + 2), 0.8]}
-          font={HERO_CANVAS_FONT}
+          position={[left, top - lineGap * (i + FG_LINE_START_INDEX), 0.8]}
           fontSize={fontSize}
-          anchorX="left"
-          anchorY="top"
-          letterSpacing={-0.045}
-          color="#e9eef8"
+          {...HERO_COMMON_TEXT_PROPS}
         >
           {line}
         </Text>
@@ -533,16 +554,60 @@ function HeroCanvasScene({ scrollRef }) {
 }
 
 function HeroTitleCanvas({ scrollRef }) {
+  const [tier, setTier] = useState(() => computeHeroTier());
+  const [tabVisible, setTabVisible] = useState(() =>
+    typeof document === "undefined" ? true : !document.hidden
+  );
+
+  useEffect(() => {
+    const syncTier = () => setTier(computeHeroTier());
+    const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const mqCoarse = window.matchMedia("(pointer: coarse)");
+    syncTier();
+    window.addEventListener("resize", syncTier);
+    mqReduced.addEventListener("change", syncTier);
+    mqCoarse.addEventListener("change", syncTier);
+    return () => {
+      window.removeEventListener("resize", syncTier);
+      mqReduced.removeEventListener("change", syncTier);
+      mqCoarse.removeEventListener("change", syncTier);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onVisibility = () => setTabVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  const dpr = useMemo(() => {
+    if (tier === "low") return [1, 1];
+    const pr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    return [1, Math.min(pr, 1.35)];
+  }, [tier]);
+
+  const low = tier === "low";
+  const perfValue = useMemo(() => ({ tier }), [tier]);
+
   return (
-    <Canvas
-      className="hero-title-canvas"
-      orthographic
-      dpr={[1, 1.5]}
-      gl={{ antialias: true, powerPreference: "high-performance", alpha: true, premultipliedAlpha: false }}
-      camera={{ zoom: 100, position: [0, 0, 10] }}
-    >
-      <HeroCanvasScene scrollRef={scrollRef} />
-    </Canvas>
+    <HeroPerfContext.Provider value={perfValue}>
+      <Canvas
+        className="hero-title-canvas"
+        orthographic
+        frameloop={tabVisible ? "always" : "never"}
+        dpr={dpr}
+        gl={{
+          antialias: !low,
+          powerPreference: "high-performance",
+          alpha: true,
+          premultipliedAlpha: false,
+          stencil: false
+        }}
+        camera={{ zoom: 100, position: [0, 0, 10] }}
+      >
+        <HeroCanvasScene scrollRef={scrollRef} />
+      </Canvas>
+    </HeroPerfContext.Provider>
   );
 }
 
