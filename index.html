@@ -1,89 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=, initial-scale=1.0">
-    <title>InBloom</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <header>
-        <nav>
-            <img src="img/inbloom_logo.png" alt="InBloom" class="logo">
-            <ul>
-                <li>
-                    <a href="#home">Home</a>
-                </li>
-                <li>
-                    <a href="#features">Features</a>
-                </li>
-                <li>
-                    <a href="#about">About</a>
-                </li>
-            </ul>
-        </nav>
-    </header>
-    <main>
-        <img src="img/background.jpg" class="background_layer1">
-        <div class="text">
-            <h2>InBloom</h2>
-            <h1>Empowering Agriculture Through Open-Source Plant Disease Detection</h1>
-            <video width="540" height="320" controls>
-                <source src="img/inbloom_video.mp4" type="video/mp4">
-            </video>
-            <button class="button" role="button"><span class="button_text">TRY</span></button>
-        </div>
-    </main>
-    <section id="features">
-        <div class="feature_background"></div>
-        <div class="feature_content">
-            <h2>Features</h2>
-            <div class="feature-cards">
-                <div class="feature-card">
-                    <img src="img/feature1.jpg" alt="Train model">
-                    <h3>Train your own model</h3>
-                    <p>This feature allows users to train their custom machine learning models using their own datasets or add and expand to the existing datasets. Users can upload their data, label it accordingly, and train a model tailored to their specific needs. This empowers users to create models that are highly specialized and optimized for their unique requirements.</p>
-                </div>
-                <div class="feature-card">
-                    <img src="img/feature2.png" alt="Upload image">
-                    <h3>Upload an image</h3>
-                    <p>With this feature, users can easily upload images of plants or affected areas to the platform. The system supports various image formats and provides a user-friendly interface for uploading images from different devices such as smartphones, tablets, or computers. Once uploaded, these images can be analyzed and processed to detect signs of plant diseases or other relevant information.</p>
-                </div>
-                <div class="feature-card">
-                    <img src="img/feature3.png" alt="Predict disease">
-                    <h3>Predict plant health</h3>
-                    <p>This feature leverages machine learning algorithms to analyze uploaded images and accurately predict plant diseases or health conditions. By processing the uploaded images, the system identifies patterns, symptoms, and characteristic markers associated with various plant diseases.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-    <section id="about">
-        <div class="about_background">
-            <h2>About</h2>
-            <div class="about-cards">
-                <div class="about-card">
-                    <h3>Project Inspiration</h3>
-                    <p>It all started with a news segment. A story about a single, unemployed mother of one. Living in the rural areas with restricted access to food she would often go days without eating just so she could give whatever she could to her newborn. However, despite the effort and sacrifice the child is ended up malnourished.</p>
-                    <p>This affected me deeply. I thought if she could not get to access to affordable and nutritious food. What if we could bring the food to her? What if she could grow crops in her own backyard?
-                    <p>Coming from a background in biotechnology, I have knowledge in the difficulties of growing crops due to disease and infections. Having researched the very organisms that cause these diseases it is essential to detect plant disease as early as possible to prevent further spread.</p>
-                    <p>By leveraging artificial intelligence we can do just that. InBloom attempts to provide users with a completely free and open-source solution to predict the health of a plant through image processing.</p>
-                </div>
-                <div class="about-card">
-                    <h3>Team</h3>
-                    <h4>Cameron Chase Naidoo</h4>
-                    <p>Biotechnologist and Full-Stack Software Engineering student from South Africa.</p>
-                    <p>Sole contributor to the InBloom portfolio project. I assumed all aspects of the frontend and backend, as well as both artificial intelligence model training and project management duties.</p>
-                    <ul class="social-links">
-                        <li><a href="https://www.linkedin.com/in/cameron-chase-naidoo/"><img src="img/linkedin_logo.png" alt="LinkedIn" class="linkedin-logo">LinkedIn</a></li>
-                        <li><a href="https://github.com/ChaseNaidoo"><img src="img/github_logo.png" alt="GitHub" class="github-logo">GitHub</a></li>
-                        <li><a href="https://twitter.com/chasenaidoo9"><img src="img/twitter_logo.png" alt="Twitter" class="twitter-logo">Twitter</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="github-link">
-                <a href="https://github.com/ChaseNaidoo/InBloom-Portfolio-Project" class="button" role="button"><span class="button_text">Link to Project repository</a>
-            </div>
-        </div>
-    </section>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>Cameron Chase Naidoo | Front-End + AI Automation</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
