@@ -1,4 +1,5 @@
 node_modules
+# stale Vite output if you ran an old outDir; real publish output is docs/
 dist
 .DS_Store
 *.log

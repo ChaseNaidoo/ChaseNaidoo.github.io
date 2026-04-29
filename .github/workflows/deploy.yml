@@ -1,6 +1,6 @@
-# Builds Vite → dist/, then pushes dist/ to branch `gh-pages`.
-# GitHub Pages must use that branch (not `main` root), or you still get /src/main.jsx.
-name: Deploy to GitHub Pages
+# Build → ./docs/, commit if changed. Pages uses branch main / folder "/docs".
+# Repo root stays the Vite dev entry (still needed for `npm run dev`).
+name: Build site for Pages
 
 on:
   push:
@@ -10,11 +10,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: gh-pages-push
+  group: pages-docs
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +27,6 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      - uses: peaceiris/actions-gh-pages@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          force_orphan: true
+          commit_message: "chore: refresh GitHub Pages build [skip ci]"
