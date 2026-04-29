@@ -1,3 +1,4 @@
+# Publishes Vite output in dist/ — not repo-root index.html (avoid /src/*.jsx on live URL).
 name: Deploy to GitHub Pages
 
 on:
