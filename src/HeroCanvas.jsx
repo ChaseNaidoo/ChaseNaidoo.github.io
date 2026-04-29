@@ -12,7 +12,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, MeshTransmissionMaterial, Text } from "@react-three/drei";
 
 /** "low" = mobile / coarse pointer / reduced motion / low-memory heuristics — cheaper glass + fewer mesh segments. */
-const HeroPerfContext = createContext({ tier: "high" });
+const HeroPerfContext = createContext({ tier: "high", reducedMotion: false });
 
 function computeHeroTier() {
   if (typeof window === "undefined") return "high";
@@ -155,6 +155,7 @@ function PlusMesh({
 
   const handlePointerDown = (event) => {
     if (!draggable) return;
+    event.nativeEvent?.preventDefault?.();
     event.stopPropagation();
     draggingRef.current = true;
     event.target.setPointerCapture(event.pointerId);
@@ -172,6 +173,7 @@ function PlusMesh({
 
   const handlePointerMove = (event) => {
     if (!draggable || !draggingRef.current || !onDragChange) return;
+    event.nativeEvent?.preventDefault?.();
     const dx = (event.clientX ?? 0) - pressRef.current.x;
     const dy = (event.clientY ?? 0) - pressRef.current.y;
     if (Math.hypot(dx, dy) > 6) pressRef.current.moved = true;
@@ -188,6 +190,7 @@ function PlusMesh({
 
   const handlePointerUp = (event) => {
     if (!draggable) return;
+    event.nativeEvent?.preventDefault?.();
     draggingRef.current = false;
     event.target.releasePointerCapture(event.pointerId);
     onDragEnd?.(event.timeStamp);
@@ -202,6 +205,17 @@ function PlusMesh({
     }
   };
 
+  const handlePointerCancel = (event) => {
+    if (!draggable) return;
+    draggingRef.current = false;
+    try {
+      event.target.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer may already be released by the browser.
+    }
+    onDragEnd?.(event.timeStamp);
+  };
+
   return (
     <mesh
       ref={ref}
@@ -212,6 +226,7 @@ function PlusMesh({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       <MeshTransmissionMaterial
         transmission={1}
@@ -294,6 +309,7 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
   });
 
   const handlePointerDown = (i, event) => {
+    event.nativeEvent?.preventDefault?.();
     event.stopPropagation();
     event.target.setPointerCapture(event.pointerId);
     const p = event.unprojectedPoint || event.point;
@@ -312,6 +328,7 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
   const handlePointerMove = (i, event) => {
     const state = dragRef.current[i];
     if (!state?.dragging) return;
+    event.nativeEvent?.preventDefault?.();
     const p = event.unprojectedPoint || event.point;
     const nextX = p.x + state.offsetX;
     const nextY = p.y + state.offsetY;
@@ -329,9 +346,21 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
   const handlePointerUp = (i, event) => {
     const state = dragRef.current[i];
     if (!state?.dragging) return;
+    event.nativeEvent?.preventDefault?.();
     state.dragging = false;
     particleState[i].velocity.multiplyScalar(0.55);
     event.target.releasePointerCapture(event.pointerId);
+  };
+
+  const handlePointerCancel = (i, event) => {
+    const state = dragRef.current[i];
+    if (!state?.dragging) return;
+    state.dragging = false;
+    try {
+      event.target.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer may already be released by the browser.
+    }
   };
 
   return (
@@ -348,6 +377,7 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
           onPointerDown={(event) => handlePointerDown(i, event)}
           onPointerMove={(event) => handlePointerMove(i, event)}
           onPointerUp={(event) => handlePointerUp(i, event)}
+          onPointerCancel={(event) => handlePointerCancel(i, event)}
         >
           <MeshTransmissionMaterial
             transmission={1}
@@ -373,9 +403,12 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
 }
 
 function HeroCanvasScene({ scrollRef }) {
-  const { tier } = useContext(HeroPerfContext);
+  const { tier, reducedMotion } = useContext(HeroPerfContext);
   const { viewport } = useThree();
   const sceneParallaxRef = useRef(null);
+  const textGroupRef = useRef(null);
+  const plusGroupRef = useRef(null);
+  const introStartRef = useRef(null);
   const fontSize = Math.min(1.28, viewport.width * 0.145);
   const lineGap = fontSize * 0.92;
   const left = -viewport.width / 2 + 0.25;
@@ -385,7 +418,7 @@ function HeroCanvasScene({ scrollRef }) {
     viewport.height * HERO_HEADER_CLEARANCE_RATIO +
     viewport.height * HERO_LAYOUT_BOTTOM_AIR_RATIO -
     viewport.height * HERO_LAYOUT_VERTICAL_OFFSET_RATIO;
-  const initialPlusPosition = useMemo(() => [left + fontSize * 8, top - lineGap * 2.05, 0.35], [
+  const initialPlusPosition = useMemo(() => [left + fontSize * 8.80, top - lineGap * 2.05, 0.35], [
     left,
     top,
     fontSize,
@@ -458,6 +491,26 @@ function HeroCanvasScene({ scrollRef }) {
   };
 
   useFrame((_, delta) => {
+    if (introStartRef.current === null) {
+      introStartRef.current = performance.now();
+    }
+    const elapsed = (performance.now() - introStartRef.current) / 1000;
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const easeOut = (v) => 1 - Math.pow(1 - v, 3);
+    const textReveal = reducedMotion ? 1 : easeOut(clamp01(elapsed / 0.52));
+    const plusReveal = reducedMotion ? 1 : easeOut(clamp01((elapsed - 0.14) / 0.72));
+
+    if (textGroupRef.current) {
+      textGroupRef.current.position.y = (1 - textReveal) * 0.22;
+      const textScale = 0.986 + textReveal * 0.014;
+      textGroupRef.current.scale.setScalar(textScale);
+    }
+    if (plusGroupRef.current) {
+      const plusScale = 0.82 + plusReveal * 0.18;
+      plusGroupRef.current.scale.setScalar(plusScale);
+      plusGroupRef.current.position.z = (1 - plusReveal) * 0.75;
+    }
+
     const data = scrollRef?.current;
     const sy =
       typeof data === "object" && data !== null && data !== undefined
@@ -506,63 +559,75 @@ function HeroCanvasScene({ scrollRef }) {
       <directionalLight intensity={1.2} position={[-3, -2, 3]} color="#e8f3ff" />
       <Environment preset="studio" resolution={tier === "low" ? 128 : 512} />
 
-      {HERO_HEADLINE_LINES.map((line, index) => (
-        <Text
-          key={`bg-${line}`}
-          position={[left, top - lineGap * index, -1.15]}
-          fontSize={fontSize}
-          {...HERO_COMMON_TEXT_PROPS}
-        >
-          {line}
-        </Text>
-      ))}
+      <group ref={textGroupRef}>
+        {HERO_HEADLINE_LINES.map((line, index) => (
+          <Text
+            key={`bg-${line}`}
+            position={[left, top - lineGap * index, -1.15]}
+            fontSize={fontSize}
+            {...HERO_COMMON_TEXT_PROPS}
+          >
+            {line}
+          </Text>
+        ))}
+        {HERO_HEADLINE_LINES.slice(FG_LINE_START_INDEX).map((line, i) => (
+          <Text
+            key={`fg-${line}`}
+            position={[left, top - lineGap * (i + FG_LINE_START_INDEX), 0.8]}
+            fontSize={fontSize}
+            {...HERO_COMMON_TEXT_PROPS}
+          >
+            {line}
+          </Text>
+        ))}
+      </group>
 
-      <PlusMesh
-        position={plusPosition}
-        scale={1.45}
-        speed={0.85}
-        main
-        qualityTier={tier}
-        scrollRef={scrollRef}
-        draggable
-        onDragStart={handleDragStart}
-        onDragChange={handleDragMove}
-        onDragEnd={handleDragEnd}
-        onDoubleActivate={triggerSplit}
-        visible={!hideMainPlus}
-      />
-      {burstState ? (
-        <SplitBurst
-          key={burstState.id}
-          origin={burstState.origin}
-          viewport={viewport}
+      <group ref={plusGroupRef}>
+        <PlusMesh
+          position={plusPosition}
+          scale={1.45}
+          speed={0.85}
+          main
           qualityTier={tier}
+          scrollRef={scrollRef}
+          draggable
+          onDragStart={handleDragStart}
+          onDragChange={handleDragMove}
+          onDragEnd={handleDragEnd}
+          onDoubleActivate={triggerSplit}
+          visible={!hideMainPlus}
         />
-      ) : null}
-      {HERO_HEADLINE_LINES.slice(FG_LINE_START_INDEX).map((line, i) => (
-        <Text
-          key={`fg-${line}`}
-          position={[left, top - lineGap * (i + FG_LINE_START_INDEX), 0.8]}
-          fontSize={fontSize}
-          {...HERO_COMMON_TEXT_PROPS}
-        >
-          {line}
-        </Text>
-      ))}
+        {burstState ? (
+          <SplitBurst
+            key={burstState.id}
+            origin={burstState.origin}
+            viewport={viewport}
+            qualityTier={tier}
+          />
+        ) : null}
+      </group>
     </group>
   );
 }
 
 export default function HeroTitleCanvas({ scrollRef }) {
   const [tier, setTier] = useState(() => computeHeroTier());
+  const [reducedMotion, setReducedMotion] = useState(() =>
+    typeof window === "undefined"
+      ? false
+      : window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
   const [tabVisible, setTabVisible] = useState(() =>
     typeof document === "undefined" ? true : !document.hidden
   );
 
   useEffect(() => {
-    const syncTier = () => setTier(computeHeroTier());
     const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const mqCoarse = window.matchMedia("(pointer: coarse)");
+    const syncTier = () => {
+      setReducedMotion(mqReduced.matches);
+      setTier(computeHeroTier());
+    };
     syncTier();
     window.addEventListener("resize", syncTier);
     mqReduced.addEventListener("change", syncTier);
@@ -587,7 +652,7 @@ export default function HeroTitleCanvas({ scrollRef }) {
   }, [tier]);
 
   const low = tier === "low";
-  const perfValue = useMemo(() => ({ tier }), [tier]);
+  const perfValue = useMemo(() => ({ tier, reducedMotion }), [tier, reducedMotion]);
 
   return (
     <HeroPerfContext.Provider value={perfValue}>
