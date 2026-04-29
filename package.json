@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "deploy": "npm run build && echo '' && echo '→ Publish: git add -A && git commit && git push origin main' && echo '  (GitHub Actions builds dist and updates GitHub Pages.)' && echo ''"
+    "preview": "vite preview"
   },
   "repository": {
     "type": "git",
