@@ -3,9 +3,9 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // GitHub Pages: Settings → Deploy from branch `main`, folder `/docs` — not repo root.
+  // Output at dist/ — set host "base directory" / publish folder to /dist (e.g. Cursor Cloud).
   build: {
-    outDir: "docs",
+    outDir: "dist",
     emptyOutDir: true
   }
 });

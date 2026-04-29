@@ -1,16 +1,14 @@
-# Build → ./docs/, commit if changed. Pages uses branch main / folder "/docs".
-# Repo root stays the Vite dev entry (still needed for `npm run dev`).
-name: Build site for Pages
+# CI: production bundle goes to dist/ (match host baseDirectory: /dist).
+name: Build
 
 on:
   push:
     branches: [main]
-
-permissions:
-  contents: write
+  pull_request:
+    branches: [main]
 
 concurrency:
-  group: pages-docs
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,7 +24,3 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: refresh GitHub Pages build [skip ci]"
