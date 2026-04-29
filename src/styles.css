@@ -213,6 +213,12 @@ main {
   pointer-events: auto;
 }
 
+/* Placeholder while Three/R3F chunk loads — keeps hero shell layout stable */
+.hero-title-canvas.hero-title-canvas--loading {
+  pointer-events: none;
+  background: transparent;
+}
+
 .hero-title {
   position: absolute;
   inset: 0;
