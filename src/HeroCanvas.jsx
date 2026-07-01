@@ -1,6 +1,5 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -9,9 +8,16 @@ import {
 } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, MeshTransmissionMaterial, Text } from "@react-three/drei";
+import { Text } from "@react-three/drei";
+import {
+  endHeroPlusDrag,
+  enterHeroPlusCursor,
+  leaveHeroPlusCursor,
+  resetHeroPlusCursor,
+  startHeroPlusDrag
+} from "./cursorInteractive.js";
 
-/** "low" = mobile / coarse pointer / reduced motion / low-memory heuristics — cheaper glass + fewer mesh segments. */
+/** "low" = mobile / coarse pointer / reduced motion — fewer pluses + lower DPR. */
 const HeroPerfContext = createContext({ tier: "high", reducedMotion: false });
 
 function computeHeroTier() {
@@ -29,12 +35,9 @@ function computeHeroTier() {
 const HERO_CANVAS_FONT =
   "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj4PVksj.ttf";
 
-/** Pull hero content below the fixed header — fraction of Drei viewport height (replaces DOM padding). */
-const HERO_HEADER_CLEARANCE_RATIO = 0.1;
-/** Tiny upward nudge so the last headline line stays inside the orthographic framebuffer (pairs with taller CSS stage). */
+const HERO_HEADER_CLEARANCE_RATIO = 0.05;
 const HERO_LAYOUT_BOTTOM_AIR_RATIO = 0.035;
-/** Moves headline + hero plus downward (subtract from anchor Y — smaller Y sits lower on screen). */
-const HERO_LAYOUT_VERTICAL_OFFSET_RATIO = 0.1;
+const HERO_LAYOUT_VERTICAL_OFFSET_RATIO = 0.07;
 
 const HERO_HEADLINE_LINES = ["DESIGN THAT", "ELEVATES", "YOUR", "AI PRODUCTS"];
 const FG_LINE_START_INDEX = 2;
@@ -44,10 +47,37 @@ const HERO_COMMON_TEXT_PROPS = {
   anchorX: "left",
   anchorY: "top",
   letterSpacing: -0.045,
-  color: "#e9eef8"
+  color: "#ffffff"
 };
 
-/** Silhouette shared by hero orb + burst minis (`half`/`arm` match prior Extrude meshes). */
+const HERO_PLUS_COLORS = ["#c2fe0c", "#5200ff", "#ff0d1a"];
+const PLUS_GLOW_SCALE = 1.28;
+const PLUS_GLOW_OPACITY = { low: 0.07, high: 0.11 };
+const PLUS_EMISSIVE_INTENSITY = { low: 0.2, high: 0.32 };
+const HERO_MINI_COUNT = { low: 7, high: 14 };
+const HERO_MINI_SEED = 0xc0ffee42;
+const HERO_MINI_MIN_NORM_DIST = 0.34;
+const HERO_MINI_CANVAS_SPAN = 0.54;
+const HERO_MINI_COLLISION_PASSES = { low: 3, high: 4 };
+const HERO_MINI_MOVEMENT_EPS = 0.015;
+
+/** Five circles in mesh space — hub + four arms — approximate the plus silhouette. */
+function buildPlusColliders(scale) {
+  const arm = 0.58 * scale;
+  const hubR = 0.36 * scale;
+  const armR = 0.27 * scale;
+  return [
+    { lx: 0, ly: 0, r: hubR },
+    { lx: 0, ly: arm, r: armR },
+    { lx: 0, ly: -arm, r: armR },
+    { lx: arm, ly: 0, r: armR },
+    { lx: -arm, ly: 0, r: armR }
+  ];
+}
+
+const _colliderVec = new THREE.Vector3();
+const _colliderMatrix = new THREE.Matrix4();
+
 const PLUS_OUTLINE_XY = [
   [-0.34, 0.92],
   [0.34, 0.92],
@@ -62,6 +92,13 @@ const PLUS_OUTLINE_XY = [
   [-0.92, 0.34],
   [-0.34, 0.34]
 ];
+
+const PLUS_GEOMETRY = extrudeRoundedPlus(0.1, {
+  bevelThickness: 0.11,
+  bevelSize: 0.11,
+  bevelSegments: 3,
+  curveSegments: 8
+});
 
 function buildPlusShape(cornerRadius) {
   const points = PLUS_OUTLINE_XY.map(([x, y]) => new THREE.Vector2(x, y));
@@ -87,316 +124,421 @@ function buildPlusShape(cornerRadius) {
   return shape;
 }
 
-/** Single factory for ExtrudeGeometry(+ center) — replaces duplicated builders in hero + SplitBurst */
 function extrudeRoundedPlus(cornerRadius, extrudeOverrides) {
   const shape = buildPlusShape(cornerRadius);
-  const g = new THREE.ExtrudeGeometry(shape, {
+  const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: 0.58,
     bevelEnabled: true,
     ...extrudeOverrides
   });
-  g.center();
-  return g;
+  geometry.center();
+  return geometry;
 }
 
-function readScrollProgress(scrollRef) {
-  const s = scrollRef?.current;
-  if (s === null || s === undefined) return 0;
-  if (typeof s !== "object") return typeof s === "number" ? s : 0;
-  return typeof s.progress === "number" ? s.progress : 0;
+function createSeededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function PlusMesh({
-  position,
-  scale = 1,
-  speed = 1,
-  main = false,
-  micro = false,
-  scrollRef,
-  draggable = false,
-  onDragStart,
-  onDragChange,
-  onDragEnd,
-  onDoubleActivate,
-  visible = true,
-  qualityTier = "high"
-}) {
-  const low = qualityTier === "low";
-  const ref = useRef(null);
-  const draggingRef = useRef(false);
-  const dragOffsetRef = useRef(new THREE.Vector3(0, 0, 0));
-  const pressRef = useRef({ x: 0, y: 0, moved: false, lastTapTs: -1000 });
-  const { pointer } = useThree();
-  const geometry = useMemo(() => {
-    const r = main ? 0.16 : micro ? 0.07 : 0.1;
-    return extrudeRoundedPlus(r, {
-      bevelThickness: main ? 0.18 : micro ? 0.11 : 0.18,
-      bevelSize: main ? 0.18 : micro ? 0.11 : 0.18,
-      bevelSegments: main ? (low ? 10 : 32) : micro ? 3 : 10,
-      curveSegments: main ? (low ? 38 : 96) : micro ? 10 : 28
-    });
-  }, [low, main, micro]);
+function createSeededMiniPluses(viewport, count, seed = HERO_MINI_SEED) {
+  const rand = createSeededRandom(seed);
+  const xSpan = viewport.width * HERO_MINI_CANVAS_SPAN;
+  const ySpan = viewport.height * HERO_MINI_CANVAS_SPAN;
+  const minDistSq = HERO_MINI_MIN_NORM_DIST * HERO_MINI_MIN_NORM_DIST;
+  const placed = [];
+  const particles = [];
 
-  useEffect(() => {
-    return () => geometry.dispose();
-  }, [geometry]);
+  for (let i = 0; i < count; i++) {
+    let normX = 0;
+    let normY = 0;
 
-  useFrame((state) => {
-    if (!ref.current) return;
-    const t = state.clock.getElapsedTime();
-    const scroll = readScrollProgress(scrollRef);
-    ref.current.rotation.x = Math.sin(t * speed) * 0.16 + pointer.y * 0.12;
-    ref.current.rotation.y = Math.cos(t * speed * 0.8) * 0.18 + pointer.x * 0.14;
-    ref.current.rotation.z = Math.cos(t * speed * 0.55) * 0.08;
-    ref.current.position.set(position[0], position[1], position[2]);
-    ref.current.rotation.z += scroll * (main ? 0.01 : micro ? 0.004 : 0.006);
-    ref.current.scale.setScalar(scale * (1 - scroll * (main ? 0.15 : micro ? 0.04 : 0.08)));
-  });
-
-  const handlePointerDown = (event) => {
-    if (!draggable) return;
-    event.nativeEvent?.preventDefault?.();
-    event.stopPropagation();
-    draggingRef.current = true;
-    event.target.setPointerCapture(event.pointerId);
-    pressRef.current.x = event.clientX ?? 0;
-    pressRef.current.y = event.clientY ?? 0;
-    pressRef.current.moved = false;
-    onDragStart?.(event.timeStamp);
-    const p = event.unprojectedPoint || event.point;
-    dragOffsetRef.current.set(
-      ref.current.position.x - p.x,
-      ref.current.position.y - p.y,
-      0
-    );
-  };
-
-  const handlePointerMove = (event) => {
-    if (!draggable || !draggingRef.current || !onDragChange) return;
-    event.nativeEvent?.preventDefault?.();
-    const dx = (event.clientX ?? 0) - pressRef.current.x;
-    const dy = (event.clientY ?? 0) - pressRef.current.y;
-    if (Math.hypot(dx, dy) > 6) pressRef.current.moved = true;
-    const p = event.unprojectedPoint || event.point;
-    onDragChange(
-      [
-      p.x + dragOffsetRef.current.x,
-      p.y + dragOffsetRef.current.y,
-      position[2]
-      ],
-      event.timeStamp
-    );
-  };
-
-  const handlePointerUp = (event) => {
-    if (!draggable) return;
-    event.nativeEvent?.preventDefault?.();
-    draggingRef.current = false;
-    event.target.releasePointerCapture(event.pointerId);
-    onDragEnd?.(event.timeStamp);
-    if (!pressRef.current.moved) {
-      const now = event.timeStamp ?? 0;
-      if (now - pressRef.current.lastTapTs < 320) {
-        onDoubleActivate?.();
-        pressRef.current.lastTapTs = -1000;
-      } else {
-        pressRef.current.lastTapTs = now;
+    for (let attempt = 0; attempt < 96; attempt++) {
+      normX = rand() * 2 - 1;
+      normY = rand() * 2 - 1;
+      const tooClose = placed.some((p) => {
+        const dx = normX - p.normX;
+        const dy = normY - p.normY;
+        return dx * dx + dy * dy < minDistSq;
+      });
+      if (!tooClose) {
+        placed.push({ normX, normY });
+        break;
+      }
+      if (attempt === 95) {
+        placed.push({ normX, normY });
       }
     }
-  };
 
-  const handlePointerCancel = (event) => {
-    if (!draggable) return;
-    draggingRef.current = false;
-    try {
-      event.target.releasePointerCapture(event.pointerId);
-    } catch {
-      // Pointer may already be released by the browser.
-    }
-    onDragEnd?.(event.timeStamp);
+    const angle = rand() * Math.PI * 2;
+    const speed = 0.22 + rand() * 0.42;
+    particles.push({
+      position: new THREE.Vector3(normX * xSpan, normY * ySpan, 0.16 + rand() * 0.3),
+      velocity: new THREE.Vector3(Math.cos(angle) * speed, Math.sin(angle) * speed, 0),
+      spin: (rand() > 0.5 ? 1 : -1) * (0.35 + rand() * 0.55),
+      scale: 0.34 + rand() * 0.16,
+      colliders: null,
+      color: HERO_PLUS_COLORS[Math.floor(rand() * HERO_PLUS_COLORS.length)]
+    });
+  }
+
+  particles.forEach((p) => {
+    p.colliders = buildPlusColliders(p.scale);
+  });
+
+  return particles;
+}
+
+function scaleParticlesForViewport(particles, prevWidth, prevHeight, nextWidth, nextHeight) {
+  const scaleX = nextWidth / prevWidth;
+  const scaleY = nextHeight / prevHeight;
+  particles.forEach((p) => {
+    p.position.x *= scaleX;
+    p.position.y *= scaleY;
+    p.velocity.x *= scaleX;
+    p.velocity.y *= scaleY;
+  });
+}
+
+function wrapMiniPosition(position, xLimit, yLimit) {
+  if (position.x > xLimit) position.x = -xLimit;
+  else if (position.x < -xLimit) position.x = xLimit;
+  if (position.y > yLimit) position.y = -yLimit;
+  else if (position.y < -yLimit) position.y = yLimit;
+}
+
+function particlesNeedCollision(particles, dragging) {
+  const epsSq = HERO_MINI_MOVEMENT_EPS * HERO_MINI_MOVEMENT_EPS;
+  for (let i = 0; i < particles.length; i++) {
+    if (dragging[i]) return true;
+    const v = particles[i].velocity;
+    if (v.x * v.x + v.y * v.y > epsSq) return true;
+  }
+  return false;
+}
+
+function getWorldColliders(particle, group, localColliders) {
+  _colliderMatrix.makeRotationFromEuler(group.rotation);
+  const px = particle.position.x;
+  const py = particle.position.y;
+  return localColliders.map((c) => {
+    _colliderVec.set(c.lx, c.ly, 0).applyMatrix4(_colliderMatrix);
+    return { x: px + _colliderVec.x, y: py + _colliderVec.y, r: c.r };
+  });
+}
+
+function circleOverlap(ax, ay, ar, bx, by, br) {
+  let dx = bx - ax;
+  let dy = by - ay;
+  let distSq = dx * dx + dy * dy;
+  const minDist = ar + br;
+
+  if (distSq === 0) {
+    dx = 0.001;
+    dy = 0;
+    distSq = dx * dx;
+  }
+
+  if (distSq >= minDist * minDist) return null;
+
+  const dist = Math.sqrt(distSq);
+  return {
+    nx: dx / dist,
+    ny: dy / dist,
+    pen: minDist - dist
   };
+}
+
+function separateParticles(a, b, nx, ny, pen, aDrag, bDrag) {
+  let aShare = 0.5;
+  let bShare = 0.5;
+  if (aDrag && !bDrag) {
+    aShare = 0;
+    bShare = 1;
+  } else if (!aDrag && bDrag) {
+    aShare = 1;
+    bShare = 0;
+  }
+
+  a.position.x -= nx * pen * aShare;
+  a.position.y -= ny * pen * aShare;
+  b.position.x += nx * pen * bShare;
+  b.position.y += ny * pen * bShare;
+
+  if (aDrag && bDrag) return;
+
+  const rvx = b.velocity.x - a.velocity.x;
+  const rvy = b.velocity.y - a.velocity.y;
+  const velAlongNormal = rvx * nx + rvy * ny;
+  if (velAlongNormal >= 0) return;
+
+  const impulse = (-1.35 * velAlongNormal) / 2;
+  if (!aDrag) {
+    a.velocity.x -= impulse * nx;
+    a.velocity.y -= impulse * ny;
+  }
+  if (!bDrag) {
+    b.velocity.x += impulse * nx;
+    b.velocity.y += impulse * ny;
+  }
+}
+
+function resolveMiniCollisions(particles, dragging, groups) {
+  const count = particles.length;
+  let hits = 0;
+
+  const worldSets = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const group = groups[i];
+    worldSets[i] =
+      group && particles[i].colliders ? getWorldColliders(particles[i], group, particles[i].colliders) : [];
+  }
+
+  for (let i = 0; i < count; i++) {
+    const worldA = worldSets[i];
+    if (!worldA.length) continue;
+
+    for (let j = i + 1; j < count; j++) {
+      const worldB = worldSets[j];
+      if (!worldB.length) continue;
+
+      for (const ca of worldA) {
+        for (const cb of worldB) {
+          const overlap = circleOverlap(ca.x, ca.y, ca.r, cb.x, cb.y, cb.r);
+          if (!overlap) continue;
+          hits++;
+          separateParticles(
+            particles[i],
+            particles[j],
+            overlap.nx,
+            overlap.ny,
+            overlap.pen,
+            dragging[i],
+            dragging[j]
+          );
+        }
+      }
+    }
+  }
+
+  return hits;
+}
+
+function MiniPlus({
+  particle,
+  groupRef,
+  low,
+  onPointerOver,
+  onPointerOut,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel
+}) {
+  const glowOpacity = low ? PLUS_GLOW_OPACITY.low : PLUS_GLOW_OPACITY.high;
+  const emissiveIntensity = low ? PLUS_EMISSIVE_INTENSITY.low : PLUS_EMISSIVE_INTENSITY.high;
 
   return (
-    <mesh
-      ref={ref}
-      geometry={geometry}
-      position={position}
-      scale={scale}
-      visible={visible}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+    <group
+      ref={groupRef}
+      position={[particle.position.x, particle.position.y, particle.position.z]}
     >
-      <MeshTransmissionMaterial
-        transmission={1}
-        roughness={0}
-        thickness={main ? 1.6 : micro ? 0.25 : 0.5}
-        ior={main ? 1.08 : micro ? 1.03 : 1.04}
-        chromaticAberration={main ? (low ? 0.012 : 0.025) : 0}
-        anisotropy={low ? 0.04 : 0.08}
-        distortion={main ? (low ? 0.04 : 0.08) : 0}
-        distortionScale={main ? (low ? 0.1 : 0.18) : 0}
-        temporalDistortion={main ? (low ? 0 : 0.05) : 0}
-        backside
-        backsideThickness={main ? 0.7 : micro ? 0.12 : 0.2}
-        samples={main ? (low ? 3 : 5) : micro ? 1 : 2}
-        resolution={main ? (low ? 128 : 384) : micro ? 64 : 96}
-        clearcoat={1}
-        clearcoatRoughness={0}
-        envMapIntensity={main ? 0.7 : micro ? 0.25 : 0.35}
-        color="#ffffff"
-      />
-    </mesh>
+      <mesh geometry={PLUS_GEOMETRY} scale={particle.scale * PLUS_GLOW_SCALE}>
+        <meshBasicMaterial
+          color={particle.color}
+          transparent
+          opacity={glowOpacity}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        geometry={PLUS_GEOMETRY}
+        scale={particle.scale}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+      >
+        <meshStandardMaterial
+          color={particle.color}
+          roughness={0.34}
+          metalness={0.1}
+          emissive={particle.color}
+          emissiveIntensity={emissiveIntensity}
+        />
+      </mesh>
+    </group>
   );
 }
 
-function SplitBurst({ origin, viewport, qualityTier = "high" }) {
-  const low = qualityTier === "low";
-  const refs = useRef([]);
+function HeroMinPluses({ viewport, low }) {
+  const count = low ? HERO_MINI_COUNT.low : HERO_MINI_COUNT.high;
+  const collisionPasses = low ? HERO_MINI_COLLISION_PASSES.low : HERO_MINI_COLLISION_PASSES.high;
+  const meshRefs = useRef([]);
   const dragRef = useRef([]);
-  const particleState = useMemo(() => {
-    const dirs = [
-      [0.85, 0.55],
-      [-0.78, 0.62],
-      [0.72, -0.74],
-      [-0.8, -0.58]
-    ];
-    return dirs.map(([x, y], i) => ({
-      position: new THREE.Vector3(origin[0], origin[1], origin[2]),
-      velocity: new THREE.Vector3(x, y, 0).normalize().multiplyScalar(5.4 + i * 0.32),
-      spin: (i % 2 ? 1 : -1) * (0.9 + i * 0.2)
-    }));
-  }, [origin]);
+  const draggingFlags = useRef([]);
+  const particlesRef = useRef(null);
+  const viewportSizeRef = useRef(null);
 
-  const geometry = useMemo(
-    () =>
-      extrudeRoundedPlus(0.1, {
-        bevelThickness: 0.11,
-        bevelSize: 0.11,
-        bevelSegments: low ? 2 : 3,
-        curveSegments: low ? 6 : 10
-      }),
-    [low]
-  );
+  if (!particlesRef.current || particlesRef.current.length !== count) {
+    particlesRef.current = createSeededMiniPluses(viewport, count);
+    viewportSizeRef.current = { width: viewport.width, height: viewport.height };
+  }
 
   useEffect(() => {
-    return () => geometry.dispose();
-  }, [geometry]);
+    const prev = viewportSizeRef.current;
+    const particles = particlesRef.current;
+    if (!prev || !particles || (prev.width === viewport.width && prev.height === viewport.height)) {
+      return;
+    }
+    scaleParticlesForViewport(particles, prev.width, prev.height, viewport.width, viewport.height);
+    viewportSizeRef.current = { width: viewport.width, height: viewport.height };
+  }, [viewport.width, viewport.height]);
+
+  useEffect(() => () => resetHeroPlusCursor(), []);
 
   useFrame((_, delta) => {
+    const particles = particlesRef.current;
+    if (!particles) return;
+
     const xLimit = viewport.width * 0.55;
     const yLimit = viewport.height * 0.55;
-    refs.current.forEach((mesh, i) => {
-      if (!mesh) return;
-      const p = particleState[i];
+    const dragging = draggingFlags.current;
+
+    for (let i = 0; i < count; i++) {
+      dragging[i] = !!dragRef.current[i]?.dragging;
+    }
+
+    const runCollision = particlesNeedCollision(particles, dragging);
+
+    for (let i = 0; i < count; i++) {
+      const p = particles[i];
       const drag = dragRef.current[i];
-      if (drag?.dragging) {
-        mesh.position.set(drag.x, drag.y, p.position.z);
-        return;
+
+      if (dragging[i]) {
+        p.position.x = drag.x;
+        p.position.y = drag.y;
+        continue;
       }
-      p.position.addScaledVector(p.velocity, delta);
-      p.velocity.multiplyScalar(0.995);
-      if (p.position.x > xLimit) p.position.x = -xLimit;
-      if (p.position.x < -xLimit) p.position.x = xLimit;
-      if (p.position.y > yLimit) p.position.y = -yLimit;
-      if (p.position.y < -yLimit) p.position.y = yLimit;
-      mesh.position.copy(p.position);
-      mesh.rotation.x += delta * p.spin * 0.55;
-      mesh.rotation.y += delta * p.spin * 0.9;
-      mesh.rotation.z += delta * p.spin * 0.35;
-    });
+
+      if (!runCollision) continue;
+
+      p.position.x += p.velocity.x * delta;
+      p.position.y += p.velocity.y * delta;
+      p.velocity.x *= 0.995;
+      p.velocity.y *= 0.995;
+      wrapMiniPosition(p.position, xLimit, yLimit);
+    }
+
+    if (runCollision) {
+      for (let pass = 0; pass < collisionPasses; pass++) {
+        if (resolveMiniCollisions(particles, dragging, meshRefs.current) === 0) {
+          break;
+        }
+      }
+      for (let i = 0; i < count; i++) {
+        wrapMiniPosition(particles[i].position, xLimit, yLimit);
+      }
+    }
+
+    for (let i = 0; i < count; i++) {
+      const group = meshRefs.current[i];
+      const p = particles[i];
+      if (!group) continue;
+
+      group.position.copy(p.position);
+      group.rotation.x += delta * p.spin * 0.55;
+      group.rotation.y += delta * p.spin * 0.9;
+      group.rotation.z += delta * p.spin * 0.35;
+    }
   });
 
-  const handlePointerDown = (i, event) => {
-    event.nativeEvent?.preventDefault?.();
-    event.stopPropagation();
-    event.target.setPointerCapture(event.pointerId);
-    const p = event.unprojectedPoint || event.point;
-    if (!dragRef.current[i]) {
-      dragRef.current[i] = { dragging: false, x: p.x, y: p.y, offsetX: 0, offsetY: 0, lastTs: 0 };
-    }
-    const state = dragRef.current[i];
-    state.dragging = true;
-    state.offsetX = particleState[i].position.x - p.x;
-    state.offsetY = particleState[i].position.y - p.y;
-    state.x = particleState[i].position.x;
-    state.y = particleState[i].position.y;
-    state.lastTs = event.timeStamp ?? 0;
-  };
-
-  const handlePointerMove = (i, event) => {
-    const state = dragRef.current[i];
-    if (!state?.dragging) return;
-    event.nativeEvent?.preventDefault?.();
-    const p = event.unprojectedPoint || event.point;
-    const nextX = p.x + state.offsetX;
-    const nextY = p.y + state.offsetY;
-    const now = event.timeStamp ?? state.lastTs;
-    const dt = Math.max(0.001, (now - state.lastTs) / 1000);
-    particleState[i].velocity.x = (nextX - state.x) / dt;
-    particleState[i].velocity.y = (nextY - state.y) / dt;
-    state.x = nextX;
-    state.y = nextY;
-    state.lastTs = now;
-    particleState[i].position.x = nextX;
-    particleState[i].position.y = nextY;
-  };
-
-  const handlePointerUp = (i, event) => {
-    const state = dragRef.current[i];
-    if (!state?.dragging) return;
-    event.nativeEvent?.preventDefault?.();
-    state.dragging = false;
-    particleState[i].velocity.multiplyScalar(0.55);
-    event.target.releasePointerCapture(event.pointerId);
-  };
-
-  const handlePointerCancel = (i, event) => {
-    const state = dragRef.current[i];
-    if (!state?.dragging) return;
-    state.dragging = false;
-    try {
+  const bindDrag = (i) => ({
+    onPointerOver: (event) => {
+      event.stopPropagation();
+      enterHeroPlusCursor();
+    },
+    onPointerOut: (event) => {
+      event.stopPropagation();
+      leaveHeroPlusCursor();
+    },
+    onPointerDown: (event) => {
+      const particles = particlesRef.current;
+      if (!particles) return;
+      event.nativeEvent?.preventDefault?.();
+      event.stopPropagation();
+      startHeroPlusDrag();
+      event.target.setPointerCapture(event.pointerId);
+      const hit = event.unprojectedPoint || event.point;
+      if (!dragRef.current[i]) {
+        dragRef.current[i] = { dragging: false, x: 0, y: 0, offsetX: 0, offsetY: 0, lastTs: 0 };
+      }
+      const drag = dragRef.current[i];
+      drag.dragging = true;
+      drag.offsetX = particles[i].position.x - hit.x;
+      drag.offsetY = particles[i].position.y - hit.y;
+      drag.x = particles[i].position.x;
+      drag.y = particles[i].position.y;
+      drag.lastTs = event.timeStamp ?? 0;
+    },
+    onPointerMove: (event) => {
+      const particles = particlesRef.current;
+      const drag = dragRef.current[i];
+      if (!particles || !drag?.dragging) return;
+      event.nativeEvent?.preventDefault?.();
+      const hit = event.unprojectedPoint || event.point;
+      const nextX = hit.x + drag.offsetX;
+      const nextY = hit.y + drag.offsetY;
+      const now = event.timeStamp ?? drag.lastTs;
+      const dt = Math.max(0.001, (now - drag.lastTs) / 1000);
+      particles[i].velocity.x = (nextX - drag.x) / dt;
+      particles[i].velocity.y = (nextY - drag.y) / dt;
+      drag.x = nextX;
+      drag.y = nextY;
+      drag.lastTs = now;
+      particles[i].position.x = nextX;
+      particles[i].position.y = nextY;
+    },
+    onPointerUp: (event) => {
+      const particles = particlesRef.current;
+      const drag = dragRef.current[i];
+      if (!particles || !drag?.dragging) return;
+      event.nativeEvent?.preventDefault?.();
+      drag.dragging = false;
+      endHeroPlusDrag();
+      particles[i].velocity.multiplyScalar(0.55);
       event.target.releasePointerCapture(event.pointerId);
-    } catch {
-      // Pointer may already be released by the browser.
+    },
+    onPointerCancel: () => {
+      const drag = dragRef.current[i];
+      if (!drag?.dragging) return;
+      drag.dragging = false;
+      endHeroPlusDrag();
     }
-  };
+  });
+
+  const particles = particlesRef.current ?? [];
 
   return (
     <group>
-      {particleState.map((p, i) => (
-        <mesh
-          key={`split-${i}`}
-          ref={(el) => {
-            refs.current[i] = el;
+      {particles.map((particle, i) => (
+        <MiniPlus
+          key={i}
+          particle={particle}
+          low={low}
+          groupRef={(el) => {
+            meshRefs.current[i] = el;
           }}
-          geometry={geometry}
-          position={[p.position.x, p.position.y, p.position.z]}
-          scale={0.55}
-          onPointerDown={(event) => handlePointerDown(i, event)}
-          onPointerMove={(event) => handlePointerMove(i, event)}
-          onPointerUp={(event) => handlePointerUp(i, event)}
-          onPointerCancel={(event) => handlePointerCancel(i, event)}
-        >
-          <MeshTransmissionMaterial
-            transmission={1}
-            roughness={0}
-            thickness={0.26}
-            ior={1.02}
-            chromaticAberration={low ? 0.08 : 0.18}
-            anisotropy={0.02}
-            distortion={0}
-            distortionScale={0}
-            temporalDistortion={0}
-            clearcoat={1}
-            clearcoatRoughness={0}
-            envMapIntensity={0.35}
-            samples={low ? 3 : 6}
-            resolution={low ? 128 : 256}
-            color="#ffffff"
-          />
-        </mesh>
+          {...bindDrag(i)}
+        />
       ))}
     </group>
   );
@@ -404,11 +546,13 @@ function SplitBurst({ origin, viewport, qualityTier = "high" }) {
 
 function HeroCanvasScene({ scrollRef }) {
   const { tier, reducedMotion } = useContext(HeroPerfContext);
+  const low = tier === "low";
   const { viewport } = useThree();
   const sceneParallaxRef = useRef(null);
   const textGroupRef = useRef(null);
   const plusGroupRef = useRef(null);
   const introStartRef = useRef(null);
+
   const fontSize = Math.min(1.28, viewport.width * 0.145);
   const lineGap = fontSize * 0.92;
   const left = -viewport.width / 2 + 0.25;
@@ -418,79 +562,7 @@ function HeroCanvasScene({ scrollRef }) {
     viewport.height * HERO_HEADER_CLEARANCE_RATIO +
     viewport.height * HERO_LAYOUT_BOTTOM_AIR_RATIO -
     viewport.height * HERO_LAYOUT_VERTICAL_OFFSET_RATIO;
-  const initialPlusPosition = useMemo(() => [left + fontSize * 8.80, top - lineGap * 2.05, 0.35], [
-    left,
-    top,
-    fontSize,
-    lineGap
-  ]);
-  const [plusPosition, setPlusPosition] = useState(initialPlusPosition);
-  const [burstState, setBurstState] = useState(null);
-  const [hideMainPlus, setHideMainPlus] = useState(false);
-  const motionRef = useRef({
-    dragging: false,
-    easing: false,
-    lastTs: 0,
-    lastX: 0,
-    lastY: 0,
-    velocityX: 0,
-    velocityY: 0,
-    targetX: 0,
-    targetY: 0
-  });
-
-  const wrapPosition = useCallback((x, y) => {
-    const xLimit = viewport.width * 0.52;
-    const yLimit = viewport.height * 0.52;
-    const wrappedX = x > xLimit ? -xLimit : x < -xLimit ? xLimit : x;
-    const wrappedY = y > yLimit ? -yLimit : y < -yLimit ? yLimit : y;
-    return [wrappedX, wrappedY];
-  }, [viewport.height, viewport.width]);
-
-  const handleDragStart = (ts) => {
-    const motion = motionRef.current;
-    motion.dragging = true;
-    motion.easing = false;
-    motion.velocityX = 0;
-    motion.velocityY = 0;
-    motion.lastTs = ts ?? 0;
-    motion.lastX = plusPosition[0];
-    motion.lastY = plusPosition[1];
-  };
-
-  const handleDragMove = (nextPosition, ts) => {
-    const motion = motionRef.current;
-    const [wrappedX, wrappedY] = wrapPosition(nextPosition[0], nextPosition[1]);
-    setPlusPosition([wrappedX, wrappedY, plusPosition[2]]);
-
-    const now = ts ?? motion.lastTs;
-    const dt = Math.max(0.001, (now - motion.lastTs) / 1000);
-    motion.velocityX = (wrappedX - motion.lastX) / dt;
-    motion.velocityY = (wrappedY - motion.lastY) / dt;
-    motion.lastX = wrappedX;
-    motion.lastY = wrappedY;
-    motion.lastTs = now;
-  };
-
-  const handleDragEnd = () => {
-    const motion = motionRef.current;
-    motion.dragging = false;
-    motion.easing = true;
-    motion.targetX = plusPosition[0] + motion.velocityX * 0.15;
-    motion.targetY = plusPosition[1] + motion.velocityY * 0.15;
-    [motion.targetX, motion.targetY] = wrapPosition(motion.targetX, motion.targetY);
-  };
-
-  const triggerSplit = () => {
-    if (burstState) return;
-    setHideMainPlus(true);
-    setBurstState({
-      id: Date.now(),
-      origin: [plusPosition[0], plusPosition[1], plusPosition[2]]
-    });
-  };
-
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (introStartRef.current === null) {
       introStartRef.current = performance.now();
     }
@@ -502,12 +574,10 @@ function HeroCanvasScene({ scrollRef }) {
 
     if (textGroupRef.current) {
       textGroupRef.current.position.y = (1 - textReveal) * 0.22;
-      const textScale = 0.986 + textReveal * 0.014;
-      textGroupRef.current.scale.setScalar(textScale);
+      textGroupRef.current.scale.setScalar(0.986 + textReveal * 0.014);
     }
     if (plusGroupRef.current) {
-      const plusScale = 0.82 + plusReveal * 0.18;
-      plusGroupRef.current.scale.setScalar(plusScale);
+      plusGroupRef.current.scale.setScalar(0.82 + plusReveal * 0.18);
       plusGroupRef.current.position.z = (1 - plusReveal) * 0.75;
     }
 
@@ -517,47 +587,16 @@ function HeroCanvasScene({ scrollRef }) {
         ? data.scrollYPixels ?? 0
         : 0;
     const ih = typeof window !== "undefined" ? window.innerHeight : 1;
-    const lift = (sy / Math.max(ih, 1)) * viewport.height * 0.42;
     if (sceneParallaxRef.current) {
-      sceneParallaxRef.current.position.y = lift;
-    }
-
-    const motion = motionRef.current;
-    if (motion.dragging || !motion.easing) return;
-
-    const currentX = plusPosition[0];
-    const currentY = plusPosition[1];
-    const [wrappedTargetX, wrappedTargetY] = wrapPosition(motion.targetX, motion.targetY);
-    motion.targetX = wrappedTargetX;
-    motion.targetY = wrappedTargetY;
-
-    motion.velocityX += (motion.targetX - currentX) * 10 * delta;
-    motion.velocityY += (motion.targetY - currentY) * 10 * delta;
-    const damping = Math.exp(-7 * delta);
-    motion.velocityX *= damping;
-    motion.velocityY *= damping;
-
-    let nextX = currentX + motion.velocityX * delta;
-    let nextY = currentY + motion.velocityY * delta;
-    [nextX, nextY] = wrapPosition(nextX, nextY);
-    setPlusPosition([nextX, nextY, plusPosition[2]]);
-
-    const distance = Math.hypot(motion.targetX - nextX, motion.targetY - nextY);
-    const speed = Math.hypot(motion.velocityX, motion.velocityY);
-    if (distance < 0.02 && speed < 0.02) {
-      motion.easing = false;
-      motion.velocityX = 0;
-      motion.velocityY = 0;
-      setPlusPosition([motion.targetX, motion.targetY, plusPosition[2]]);
+      sceneParallaxRef.current.position.y = (sy / Math.max(ih, 1)) * viewport.height * 0.42;
     }
   });
 
   return (
     <group ref={sceneParallaxRef}>
-      <ambientLight intensity={0.8} />
-      <directionalLight intensity={2.4} position={[3, 4, 5]} />
-      <directionalLight intensity={1.2} position={[-3, -2, 3]} color="#e8f3ff" />
-      <Environment preset="studio" resolution={tier === "low" ? 128 : 512} />
+      <ambientLight intensity={0.85} />
+      <directionalLight intensity={2.2} position={[3, 4, 5]} />
+      <directionalLight intensity={1} position={[-3, -2, 3]} color="#ffffff" />
 
       <group ref={textGroupRef}>
         {HERO_HEADLINE_LINES.map((line, index) => (
@@ -583,28 +622,7 @@ function HeroCanvasScene({ scrollRef }) {
       </group>
 
       <group ref={plusGroupRef}>
-        <PlusMesh
-          position={plusPosition}
-          scale={1.45}
-          speed={0.85}
-          main
-          qualityTier={tier}
-          scrollRef={scrollRef}
-          draggable
-          onDragStart={handleDragStart}
-          onDragChange={handleDragMove}
-          onDragEnd={handleDragEnd}
-          onDoubleActivate={triggerSplit}
-          visible={!hideMainPlus}
-        />
-        {burstState ? (
-          <SplitBurst
-            key={burstState.id}
-            origin={burstState.origin}
-            viewport={viewport}
-            qualityTier={tier}
-          />
-        ) : null}
+        <HeroMinPluses viewport={viewport} low={low} />
       </group>
     </group>
   );
@@ -645,13 +663,13 @@ export default function HeroTitleCanvas({ scrollRef }) {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
+  const low = tier === "low";
   const dpr = useMemo(() => {
-    if (tier === "low") return [1, 1];
+    if (low) return [1, 1];
     const pr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     return [1, Math.min(pr, 1.35)];
-  }, [tier]);
+  }, [low]);
 
-  const low = tier === "low";
   const perfValue = useMemo(() => ({ tier, reducedMotion }), [tier, reducedMotion]);
 
   return (
