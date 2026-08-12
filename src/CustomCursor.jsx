@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isHeroPlusCursorActive } from "./cursorInteractive.js";
 
 const INTERACTIVE_SELECTOR =
-  "a, button, [role='button'], input, textarea, select, label[for], summary";
+  "a, button, [role='button'], [role='slider'], [role='tab'], input, textarea, select, label[for], summary, .ba-slider";
 const BASE_DIAMETER = 18;
 const HOVER_SCALE = 2.35;
 const FOLLOW_LERP = 0.16;

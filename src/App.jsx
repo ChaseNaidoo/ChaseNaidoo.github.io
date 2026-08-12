@@ -1,54 +1,22 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 
-import CustomCursor from "./CustomCursor.jsx";
+import { CASE_STUDIES, caseStudyHref } from "./data/caseStudies.js";
+import PageFrame from "./PageFrame.jsx";
+import SiteHeader from "./SiteHeader.jsx";
 
 const HeroTitleCanvas = lazy(() => import("./HeroCanvas.jsx"));
-import fancamPlaceholder from "../img/feature2.png";
-import inlogicPlaceholder from "../img/feature3.png";
 
-const CASE_STUDIES = [
-  {
-    id: "fancam",
-    index: "01",
-    client: "Fancam",
-    period: "2025–Present",
-    title: "Fancam UX Modernization",
-    lede:
-      "Led end-to-end redesign of the viewing and engagement experience for high-resolution 360° stadium imagery while retaining existing architecture constraints.",
-    image: fancamPlaceholder,
-    imageAlt: "Fancam case study placeholder visual",
-    github: null,
-    live: null
-  },
-  {
-    id: "inlogic",
-    index: "02",
-    client: "InLogic",
-    period: "2024–2025",
-    title: "AI Automation Workflow Experience",
-    lede:
-      "Designed user-centered interfaces for AI-powered automation products helping business teams adopt new workflows with less operational friction.",
-    image: inlogicPlaceholder,
-    imageAlt: "InLogic case study placeholder visual",
-    github: null,
-    live: null
-  }
-];
-
-function caseStudyHref(id) {
-  return `/case-studies/${id}`;
-}
+const CASE_STUDY_IDLE_MS = 8000;
 
 export default function App() {
   const heroRef = useRef(null);
-  const pageRef = useRef(null);
+  const workRef = useRef(null);
   const scrollProgressRef = useRef({ scrollYPixels: 0, progress: 0 });
-  const pointerRafRef = useRef(0);
   const scrollRafRef = useRef(0);
-  const pointerPosRef = useRef({ x: 0, y: 0 });
-  const canUseGridHoverRef = useRef(true);
   const cardsTrackRef = useRef(null);
   const skipCarouselScrollRef = useRef(true);
+  const workInViewRef = useRef(false);
+  const idleTimerRef = useRef(0);
   const [activeStudyId, setActiveStudyId] = useState(CASE_STUDIES[0].id);
 
   useEffect(() => {
@@ -88,24 +56,69 @@ export default function App() {
   }, [activeStudyId]);
 
   useEffect(() => {
-    const mqCoarse = window.matchMedia("(pointer: coarse)");
-    const syncHoverCapability = () => {
-      const canUse = !mqCoarse.matches;
-      canUseGridHoverRef.current = canUse;
-      if (!canUse && pageRef.current) {
-        pageRef.current.style.setProperty("--grid-hover", "0");
-      }
-    };
-    syncHoverCapability();
-    mqCoarse.addEventListener("change", syncHoverCapability);
-    return () => mqCoarse.removeEventListener("change", syncHoverCapability);
+    const work = workRef.current;
+    if (!work) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        workInViewRef.current = entry.isIntersecting && entry.intersectionRatio >= 0.35;
+      },
+      { threshold: [0, 0.35, 0.6] }
+    );
+    observer.observe(work);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (pointerRafRef.current) {
-        cancelAnimationFrame(pointerRafRef.current);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || CASE_STUDIES.length < 2) return undefined;
+
+    const clearIdle = () => {
+      if (idleTimerRef.current) {
+        window.clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = 0;
       }
+    };
+
+    const scheduleIdleAdvance = () => {
+      clearIdle();
+      idleTimerRef.current = window.setTimeout(() => {
+        if (document.hidden || !workInViewRef.current) {
+          scheduleIdleAdvance();
+          return;
+        }
+        setActiveStudyId((currentId) => {
+          const currentIndex = CASE_STUDIES.findIndex((study) => study.id === currentId);
+          const nextIndex = (Math.max(0, currentIndex) + 1) % CASE_STUDIES.length;
+          const nextId = CASE_STUDIES[nextIndex].id;
+          window.history.replaceState(null, "", `#${nextId}`);
+          return nextId;
+        });
+        scheduleIdleAdvance();
+      }, CASE_STUDY_IDLE_MS);
+    };
+
+    const onInteract = () => scheduleIdleAdvance();
+    const onVisibility = () => {
+      if (document.hidden) clearIdle();
+      else scheduleIdleAdvance();
+    };
+
+    const work = workRef.current;
+    work?.addEventListener("pointerdown", onInteract);
+    work?.addEventListener("focusin", onInteract);
+    work?.addEventListener("wheel", onInteract, { passive: true });
+    window.addEventListener("keydown", onInteract);
+    document.addEventListener("visibilitychange", onVisibility);
+    scheduleIdleAdvance();
+
+    return () => {
+      clearIdle();
+      work?.removeEventListener("pointerdown", onInteract);
+      work?.removeEventListener("focusin", onInteract);
+      work?.removeEventListener("wheel", onInteract);
+      window.removeEventListener("keydown", onInteract);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -135,29 +148,6 @@ export default function App() {
     };
   }, []);
 
-  const handlePointerMove = (event) => {
-    if (!pageRef.current || !canUseGridHoverRef.current) return;
-    pointerPosRef.current.x = event.clientX;
-    pointerPosRef.current.y = event.clientY;
-    if (pointerRafRef.current) return;
-    pointerRafRef.current = requestAnimationFrame(() => {
-      pointerRafRef.current = 0;
-      if (!pageRef.current) return;
-      pageRef.current.style.setProperty("--grid-hover", "1");
-      pageRef.current.style.setProperty("--mouse-x", `${pointerPosRef.current.x}px`);
-      pageRef.current.style.setProperty("--mouse-y", `${pointerPosRef.current.y}px`);
-    });
-  };
-
-  const handlePointerLeave = () => {
-    if (!pageRef.current) return;
-    if (pointerRafRef.current) {
-      cancelAnimationFrame(pointerRafRef.current);
-      pointerRafRef.current = 0;
-    }
-    pageRef.current.style.setProperty("--grid-hover", "0");
-  };
-
   const activeIndex = Math.max(
     0,
     CASE_STUDIES.findIndex((study) => study.id === activeStudyId)
@@ -169,31 +159,9 @@ export default function App() {
     window.history.replaceState(null, "", `#${id}`);
   };
 
-  const stepStudy = (direction) => {
-    const nextIndex = (activeIndex + direction + CASE_STUDIES.length) % CASE_STUDIES.length;
-    selectStudy(CASE_STUDIES[nextIndex].id);
-  };
-
   return (
-    <div className="page" ref={pageRef} onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}>
-      <CustomCursor />
-      <header className="site-header">
-        <nav className="nav-pill glass-chrome" aria-label="Site navigation">
-          <a className="nav-pill-link nav-pill-brand" href="#top">
-            cameron
-          </a>
-          <span className="nav-pill-divider" aria-hidden="true" />
-          <a className="nav-pill-link" href="#work">
-            Case Studies
-          </a>
-          <a className="nav-pill-link" href="#about">
-            About
-          </a>
-          <a className="nav-pill-link" href="#contact">
-            Contact
-          </a>
-        </nav>
-      </header>
+    <PageFrame>
+      <SiteHeader />
 
       <main id="top">
         <section className="hero" ref={heroRef}>
@@ -201,15 +169,10 @@ export default function App() {
 
           <div className="hero-canvas-shell">
             <div className="hero-title-stage">
-              <h1 className="hero-title sr-only">
-                DESIGN THAT
-                <br />
-                ELEVATES
-                <br />
-                YOUR
-                <br />
-                AI PRODUCTS
-              </h1>
+              <div className="hero-lede">
+                <h1 className="hero-title sr-only">Where art meets engineering</h1>
+                <p className="hero-subtitle">Product Design | Front-end developer</p>
+              </div>
               <Suspense
                 fallback={
                   <div
@@ -253,32 +216,27 @@ export default function App() {
           </div>
         </section>
 
-        <section id="work" className="case-studies-section" aria-labelledby="case-studies-showcase-title">
-          <div className="case-studies-shell">
-            <aside className="case-studies-rail" aria-hidden="true">
-              <span className="case-studies-rail-label">Case Studies</span>
-              <span className="case-studies-rail-count">{String(CASE_STUDIES.length).padStart(2, "0")} Projects</span>
-            </aside>
-
-            <div className="case-studies-main">
+        <section
+          id="work"
+          ref={workRef}
+          className="case-studies-section"
+          aria-labelledby="case-studies-showcase-title"
+        >
+          <div className="case-studies-main">
               <div className="case-studies-showcase">
                 <img
                   key={activeStudy.id}
                   src={activeStudy.image}
                   alt={activeStudy.imageAlt}
                   loading="lazy"
+                  style={
+                    activeStudy.imagePosition
+                      ? { objectPosition: activeStudy.imagePosition }
+                      : undefined
+                  }
                 />
 
                 <div className="case-studies-showcase-overlay">
-                  <div className="case-studies-progress" aria-hidden="true">
-                    {CASE_STUDIES.map((study, index) => (
-                      <span
-                        key={study.id}
-                        className={index === activeIndex ? "is-active" : undefined}
-                      />
-                    ))}
-                  </div>
-
                   <p className="case-studies-showcase-kicker">
                     {activeStudy.client}
                     <span aria-hidden="true"> / </span>
@@ -290,6 +248,13 @@ export default function App() {
                   </h2>
 
                   <p className="case-studies-showcase-desc">{activeStudy.lede}</p>
+
+                  {activeStudy.outcome ? (
+                    <p className="case-studies-showcase-outcome">
+                      <span className="case-studies-showcase-outcome-label">Outcome</span>
+                      {activeStudy.outcome}
+                    </p>
+                  ) : null}
 
                   <div className="case-studies-showcase-actions">
                     <a
@@ -321,23 +286,22 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="case-studies-showcase-nav">
-                  <button
-                    type="button"
-                    className="case-studies-nav-btn"
-                    aria-label="Previous project"
-                    onClick={() => stepStudy(-1)}
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    className="case-studies-nav-btn"
-                    aria-label="Next project"
-                    onClick={() => stepStudy(1)}
-                  >
-                    →
-                  </button>
+                <div
+                  className="case-studies-progress"
+                  role="tablist"
+                  aria-label="Featured projects"
+                >
+                  {CASE_STUDIES.map((study, index) => (
+                    <button
+                      key={study.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={index === activeIndex}
+                      aria-label={`Show ${study.title}`}
+                      className={`case-studies-progress-tick${index === activeIndex ? " is-active" : ""}`}
+                      onClick={() => selectStudy(study.id)}
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -366,7 +330,16 @@ export default function App() {
                         onClick={() => selectStudy(study.id)}
                       >
                         <span className="case-studies-thumb">
-                          <img src={study.image} alt="" loading="lazy" />
+                          <img
+                            src={study.image}
+                            alt=""
+                            loading="lazy"
+                            style={
+                              study.imagePosition
+                                ? { objectPosition: study.imagePosition }
+                                : undefined
+                            }
+                          />
                         </span>
                         <span className="case-studies-card-copy">
                           <span className="case-studies-index">{study.index}</span>
@@ -390,20 +363,129 @@ export default function App() {
                 })}
                 </div>
               </div>
+          </div>
+        </section>
+
+        <section id="about" className="content-section about-section">
+          <div className="about-inner">
+            <p className="about-kicker">About</p>
+            <h2>Product designer who can ship the interface</h2>
+            <p className="about-lede">
+              I design AI and product experiences from research through high-fidelity UI — then implement them
+              in code. That mix means I can sit with product, talk fluently with engineering, and take ideas
+              further than a handoff. Based in Pretoria, South Africa.
+            </p>
+
+            <div className="about-grid">
+              <article className="about-block">
+                <h3>Experience</h3>
+                <ul className="about-timeline">
+                  <li>
+                    <p className="about-role">Product Design &amp; Front-end</p>
+                    <p className="about-meta">Fancam / June 2025 – Present</p>
+                    <p>
+                      Leading the end-to-end UX redesign of Fancam’s live NFL experience — viewer,
+                      camera, postcards, and shop — then shipping the interface on existing
+                      architecture with engineering.
+                    </p>
+                  </li>
+                  <li>
+                    <p className="about-role">Product Design, AI Automation</p>
+                    <p className="about-meta">InLogic / November 2024 – June 2025</p>
+                    <p>
+                      Designed AI product experiences including Balmer Agency’s Business Acceleration
+                      Discovery assistant — from conversation flow and information architecture through
+                      high-fidelity UI.
+                    </p>
+                  </li>
+                  <li>
+                    <p className="about-role">Quality Controller</p>
+                    <p className="about-meta">Liwayway Food South Africa / March 2022 – August 2022</p>
+                    <p>
+                      Validated product performance against standards, monitored process quality, and produced
+                      data capture and reporting.
+                    </p>
+                  </li>
+                  <li>
+                    <p className="about-role">Laboratory Assistant</p>
+                    <p className="about-meta">Tshwane University of Technology / January 2021 – January 2022</p>
+                    <p>
+                      Prepared and calibrated lab instruments, and supported sample collection, labeling, and
+                      documentation for analysis.
+                    </p>
+                  </li>
+                </ul>
+              </article>
+
+              <div className="about-side">
+                <article className="about-block">
+                  <h3>How I work</h3>
+                  <ul className="about-list">
+                    <li>
+                      <p className="about-role">Design first</p>
+                      <p className="about-meta">UX strategy, flows, IA, interaction, visual hierarchy</p>
+                    </li>
+                    <li>
+                      <p className="about-role">Build when it matters</p>
+                      <p className="about-meta">React, HTML/CSS, prototypes that survive engineering</p>
+                    </li>
+                    <li>
+                      <p className="about-role">Ship with constraints</p>
+                      <p className="about-meta">Existing architecture, AI workflows, measurable outcomes</p>
+                    </li>
+                  </ul>
+                </article>
+
+                <article className="about-block">
+                  <h3>Education</h3>
+                  <ul className="about-list">
+                    <li>
+                      <p className="about-role">National Diploma: Biotechnology</p>
+                      <p className="about-meta">Tshwane University of Technology / 2022</p>
+                    </li>
+                    <li>
+                      <p className="about-role">Full-stack Software Engineering</p>
+                      <p className="about-meta">ALX Africa / 2024</p>
+                    </li>
+                    <li>
+                      <p className="about-role">AI Starter Kit</p>
+                      <p className="about-meta">ALX Africa / 2025</p>
+                    </li>
+                  </ul>
+                </article>
+
+                <article className="about-block">
+                  <h3>Tools</h3>
+                  <ul className="about-skills">
+                    <li>Figma</li>
+                    <li>UX strategy</li>
+                    <li>Interaction design</li>
+                    <li>Information architecture</li>
+                    <li>React</li>
+                    <li>JavaScript</li>
+                    <li>HTML / CSS</li>
+                    <li>Python</li>
+                    <li>n8n</li>
+                    <li>SQL</li>
+                  </ul>
+                </article>
+              </div>
             </div>
           </div>
         </section>
 
-        <section id="about" className="content-section">
-          <h2>About</h2>
-          <p>Product-minded front-end developer combining strong UI craft with practical engineering execution.</p>
-        </section>
-
-        <section id="contact" className="content-section">
-          <h2>Contact</h2>
-          <p>chasenaidoo9@gmail.com</p>
+        <section id="contact" className="content-section contact-section">
+          <p className="about-kicker">Contact</p>
+          <h2>Let’s design something that ships</h2>
+          <p className="about-lede">Pretoria, South Africa</p>
+          <div className="contact-links">
+            <a href="mailto:chasenaidoo9@gmail.com">chasenaidoo9@gmail.com</a>
+            <a href="https://www.linkedin.com/in/cameron-chase-naidoo/" target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+          </div>
         </section>
       </main>
-    </div>
+    </PageFrame>
   );
 }

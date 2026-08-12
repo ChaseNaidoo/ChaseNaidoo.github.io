@@ -39,8 +39,8 @@ const HERO_HEADER_CLEARANCE_RATIO = 0.05;
 const HERO_LAYOUT_BOTTOM_AIR_RATIO = 0.035;
 const HERO_LAYOUT_VERTICAL_OFFSET_RATIO = 0.07;
 
-const HERO_HEADLINE_LINES = ["DESIGN THAT", "ELEVATES", "YOUR", "AI PRODUCTS"];
-const FG_LINE_START_INDEX = 2;
+const HERO_HEADLINE_LINES = ["WHERE ART", "MEETS", "ENGINEERING"];
+const FG_LINE_START_INDEX = 1;
 
 const HERO_COMMON_TEXT_PROPS = {
   font: HERO_CANVAS_FONT,
@@ -334,10 +334,7 @@ function MiniPlus({
   low,
   onPointerOver,
   onPointerOut,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel
+  onPointerDown
 }) {
   const glowOpacity = low ? PLUS_GLOW_OPACITY.low : PLUS_GLOW_OPACITY.high;
   const emissiveIntensity = low ? PLUS_EMISSIVE_INTENSITY.low : PLUS_EMISSIVE_INTENSITY.high;
@@ -347,7 +344,11 @@ function MiniPlus({
       ref={groupRef}
       position={[particle.position.x, particle.position.y, particle.position.z]}
     >
-      <mesh geometry={PLUS_GEOMETRY} scale={particle.scale * PLUS_GLOW_SCALE}>
+      <mesh
+        geometry={PLUS_GEOMETRY}
+        scale={particle.scale * PLUS_GLOW_SCALE}
+        raycast={() => null}
+      >
         <meshBasicMaterial
           color={particle.color}
           transparent
@@ -363,9 +364,6 @@ function MiniPlus({
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
       >
         <meshStandardMaterial
           color={particle.color}
@@ -379,12 +377,16 @@ function MiniPlus({
   );
 }
 
+const _dragWorld = new THREE.Vector3();
+
 function HeroMinPluses({ viewport, low }) {
   const count = low ? HERO_MINI_COUNT.low : HERO_MINI_COUNT.high;
   const collisionPasses = low ? HERO_MINI_COLLISION_PASSES.low : HERO_MINI_COLLISION_PASSES.high;
+  const { camera, gl } = useThree();
   const meshRefs = useRef([]);
   const dragRef = useRef([]);
   const draggingFlags = useRef([]);
+  const activeDragRef = useRef(null);
   const particlesRef = useRef(null);
   const viewportSizeRef = useRef(null);
 
@@ -404,6 +406,86 @@ function HeroMinPluses({ viewport, low }) {
   }, [viewport.width, viewport.height]);
 
   useEffect(() => () => resetHeroPlusCursor(), []);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const clientToWorld = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect();
+      const ndcX = ((clientX - rect.left) / Math.max(rect.width, 1)) * 2 - 1;
+      const ndcY = -((clientY - rect.top) / Math.max(rect.height, 1)) * 2 + 1;
+      _dragWorld.set(ndcX, ndcY, 0).unproject(camera);
+      return _dragWorld;
+    };
+
+    const endDrag = (index, dampVelocity) => {
+      const particles = particlesRef.current;
+      const drag = dragRef.current[index];
+      if (!drag?.dragging) return;
+      drag.dragging = false;
+      if (dampVelocity && particles?.[index]) {
+        particles[index].velocity.multiplyScalar(0.55);
+      }
+      if (activeDragRef.current?.index === index) {
+        activeDragRef.current = null;
+      }
+      endHeroPlusDrag();
+      canvas.classList.remove("is-dragging-plus");
+    };
+
+    const onPointerMove = (event) => {
+      const active = activeDragRef.current;
+      const particles = particlesRef.current;
+      if (!active || !particles) return;
+      const { index, pointerId } = active;
+      if (event.pointerId !== pointerId) return;
+      const drag = dragRef.current[index];
+      if (!drag?.dragging) return;
+
+      event.preventDefault();
+      const hit = clientToWorld(event.clientX, event.clientY);
+      const nextX = hit.x + drag.offsetX;
+      const nextY = hit.y + drag.offsetY;
+      const now = event.timeStamp || drag.lastTs;
+      const dt = Math.max(0.001, (now - drag.lastTs) / 1000);
+      particles[index].velocity.x = (nextX - drag.x) / dt;
+      particles[index].velocity.y = (nextY - drag.y) / dt;
+      drag.x = nextX;
+      drag.y = nextY;
+      drag.lastTs = now;
+      particles[index].position.x = nextX;
+      particles[index].position.y = nextY;
+    };
+
+    const onPointerUp = (event) => {
+      const active = activeDragRef.current;
+      if (!active || event.pointerId !== active.pointerId) return;
+      endDrag(active.index, true);
+      if (canvas.hasPointerCapture?.(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    const onPointerCancel = (event) => {
+      const active = activeDragRef.current;
+      if (!active || event.pointerId !== active.pointerId) return;
+      endDrag(active.index, false);
+    };
+
+    canvas.addEventListener("pointermove", onPointerMove, { passive: false });
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerCancel);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
+
+    return () => {
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerCancel);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
+    };
+  }, [camera, gl]);
 
   useFrame((_, delta) => {
     const particles = particlesRef.current;
@@ -473,10 +555,9 @@ function HeroMinPluses({ viewport, low }) {
     onPointerDown: (event) => {
       const particles = particlesRef.current;
       if (!particles) return;
-      event.nativeEvent?.preventDefault?.();
       event.stopPropagation();
-      startHeroPlusDrag();
-      event.target.setPointerCapture(event.pointerId);
+      event.nativeEvent?.preventDefault?.();
+
       const hit = event.unprojectedPoint || event.point;
       if (!dragRef.current[i]) {
         dragRef.current[i] = { dragging: false, x: 0, y: 0, offsetX: 0, offsetY: 0, lastTs: 0 };
@@ -488,40 +569,15 @@ function HeroMinPluses({ viewport, low }) {
       drag.x = particles[i].position.x;
       drag.y = particles[i].position.y;
       drag.lastTs = event.timeStamp ?? 0;
-    },
-    onPointerMove: (event) => {
-      const particles = particlesRef.current;
-      const drag = dragRef.current[i];
-      if (!particles || !drag?.dragging) return;
-      event.nativeEvent?.preventDefault?.();
-      const hit = event.unprojectedPoint || event.point;
-      const nextX = hit.x + drag.offsetX;
-      const nextY = hit.y + drag.offsetY;
-      const now = event.timeStamp ?? drag.lastTs;
-      const dt = Math.max(0.001, (now - drag.lastTs) / 1000);
-      particles[i].velocity.x = (nextX - drag.x) / dt;
-      particles[i].velocity.y = (nextY - drag.y) / dt;
-      drag.x = nextX;
-      drag.y = nextY;
-      drag.lastTs = now;
-      particles[i].position.x = nextX;
-      particles[i].position.y = nextY;
-    },
-    onPointerUp: (event) => {
-      const particles = particlesRef.current;
-      const drag = dragRef.current[i];
-      if (!particles || !drag?.dragging) return;
-      event.nativeEvent?.preventDefault?.();
-      drag.dragging = false;
-      endHeroPlusDrag();
-      particles[i].velocity.multiplyScalar(0.55);
-      event.target.releasePointerCapture(event.pointerId);
-    },
-    onPointerCancel: () => {
-      const drag = dragRef.current[i];
-      if (!drag?.dragging) return;
-      drag.dragging = false;
-      endHeroPlusDrag();
+
+      activeDragRef.current = { index: i, pointerId: event.pointerId };
+      startHeroPlusDrag();
+      gl.domElement.classList.add("is-dragging-plus");
+      try {
+        gl.domElement.setPointerCapture(event.pointerId);
+      } catch {
+        /* capture can fail on some mobile browsers; window listeners still work */
+      }
     }
   });
 
@@ -547,11 +603,12 @@ function HeroMinPluses({ viewport, low }) {
 function HeroCanvasScene({ scrollRef }) {
   const { tier, reducedMotion } = useContext(HeroPerfContext);
   const low = tier === "low";
-  const { viewport } = useThree();
+  const { viewport, size, gl } = useThree();
   const sceneParallaxRef = useRef(null);
   const textGroupRef = useRef(null);
   const plusGroupRef = useRef(null);
   const introStartRef = useRef(null);
+  const layoutStageRef = useRef(null);
 
   const fontSize = Math.min(1.28, viewport.width * 0.145);
   const lineGap = fontSize * 0.92;
@@ -562,6 +619,11 @@ function HeroCanvasScene({ scrollRef }) {
     viewport.height * HERO_HEADER_CLEARANCE_RATIO +
     viewport.height * HERO_LAYOUT_BOTTOM_AIR_RATIO -
     viewport.height * HERO_LAYOUT_VERTICAL_OFFSET_RATIO;
+
+  useEffect(() => {
+    layoutStageRef.current = gl.domElement.closest(".hero-title-stage");
+  }, [gl]);
+
   useFrame(() => {
     if (introStartRef.current === null) {
       introStartRef.current = performance.now();
@@ -590,6 +652,17 @@ function HeroCanvasScene({ scrollRef }) {
     if (sceneParallaxRef.current) {
       sceneParallaxRef.current.position.y = (sy / Math.max(ih, 1)) * viewport.height * 0.42;
     }
+
+    const stage = layoutStageRef.current;
+    if (stage && size.width > 0 && size.height > 0 && viewport.width > 0) {
+      const textY = textGroupRef.current?.position.y ?? 0;
+      const parallaxY = sceneParallaxRef.current?.position.y ?? 0;
+      const lastLineTop = top - lineGap * (HERO_HEADLINE_LINES.length - 1);
+      const subtitleWorldY = lastLineTop - fontSize * 1.12 + textY + parallaxY;
+      const pxPerUnitY = size.height / viewport.height;
+      const cssTop = size.height / 2 - subtitleWorldY * pxPerUnitY;
+      stage.style.setProperty("--hero-sub-top", `${cssTop.toFixed(2)}px`);
+    }
   });
 
   return (
@@ -604,6 +677,7 @@ function HeroCanvasScene({ scrollRef }) {
             key={`bg-${line}`}
             position={[left, top - lineGap * index, -1.15]}
             fontSize={fontSize}
+            pointerEvents="none"
             {...HERO_COMMON_TEXT_PROPS}
           >
             {line}
@@ -614,6 +688,7 @@ function HeroCanvasScene({ scrollRef }) {
             key={`fg-${line}`}
             position={[left, top - lineGap * (i + FG_LINE_START_INDEX), 0.8]}
             fontSize={fontSize}
+            pointerEvents="none"
             {...HERO_COMMON_TEXT_PROPS}
           >
             {line}
@@ -665,9 +740,9 @@ export default function HeroTitleCanvas({ scrollRef }) {
 
   const low = tier === "low";
   const dpr = useMemo(() => {
-    if (low) return [1, 1];
     const pr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-    return [1, Math.min(pr, 1.35)];
+    if (low) return [1, Math.min(pr, 1.75)];
+    return [1, Math.min(pr, 2)];
   }, [low]);
 
   const perfValue = useMemo(() => ({ tier, reducedMotion }), [tier, reducedMotion]);
@@ -679,14 +754,18 @@ export default function HeroTitleCanvas({ scrollRef }) {
         orthographic
         frameloop={tabVisible ? "always" : "never"}
         dpr={dpr}
+        style={{ touchAction: "none" }}
         gl={{
-          antialias: !low,
+          antialias: true,
           powerPreference: "high-performance",
           alpha: true,
           premultipliedAlpha: false,
           stencil: false
         }}
         camera={{ zoom: 100, position: [0, 0, 10] }}
+        onCreated={({ gl }) => {
+          gl.domElement.style.touchAction = "none";
+        }}
       >
         <HeroCanvasScene scrollRef={scrollRef} />
       </Canvas>
