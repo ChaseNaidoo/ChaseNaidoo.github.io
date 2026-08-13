@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { isHeroPlusCursorActive } from "./cursorInteractive.js";
+import { getCarouselArrow, isHeroPlusCursorActive } from "./cursorInteractive.js";
 
 const INTERACTIVE_SELECTOR =
   "a, button, [role='button'], [role='slider'], [role='tab'], input, textarea, select, label[for], summary, .ba-slider";
@@ -14,6 +14,7 @@ export default function CustomCursor() {
   const currentRef = useRef({ x: 0, y: 0 });
   const scaleRef = useRef({ current: 1, target: 1 });
   const domHoverRef = useRef(false);
+  const arrowRef = useRef(null);
   const visibleRef = useRef(false);
   const rafRef = useRef(0);
   const [enabled, setEnabled] = useState(false);
@@ -41,9 +42,14 @@ export default function CustomCursor() {
     if (!cursor) return;
 
     const syncHover = () => {
-      const hovering = domHoverRef.current || isHeroPlusCursorActive();
+      const arrow = getCarouselArrow();
+      arrowRef.current = arrow;
+      const hovering = Boolean(arrow) || domHoverRef.current || isHeroPlusCursorActive();
       scaleRef.current.target = hovering ? HOVER_SCALE : 1;
-      cursor.classList.toggle("custom-cursor--hover", hovering);
+      cursor.classList.toggle("custom-cursor--hover", hovering && !arrow);
+      cursor.classList.toggle("custom-cursor--arrow", Boolean(arrow));
+      cursor.classList.toggle("custom-cursor--arrow-left", arrow === "left");
+      cursor.classList.toggle("custom-cursor--arrow-right", arrow === "right");
     };
 
     const onPointerMove = (event) => {
@@ -122,6 +128,16 @@ export default function CustomCursor() {
       ref={cursorRef}
       style={{ width: BASE_DIAMETER, height: BASE_DIAMETER }}
       aria-hidden="true"
-    />
+    >
+      <svg className="custom-cursor-arrow" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M6.25 3.5 11 8l-4.75 4.5"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="square"
+          strokeLinejoin="miter"
+        />
+      </svg>
+    </div>
   );
 }

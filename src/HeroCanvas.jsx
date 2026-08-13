@@ -16,6 +16,15 @@ import {
   resetHeroPlusCursor,
   startHeroPlusDrag
 } from "./cursorInteractive.js";
+import {
+  HERO_PLUS_COLORS,
+  MiniPlus,
+  PLUS_EMISSIVE_INTENSITY,
+  PLUS_GLOW_OPACITY,
+  buildPlusColliders,
+  createSeededRandom,
+  resolveMiniCollisions
+} from "./plusMotif.jsx";
 
 /** "low" = mobile / coarse pointer / reduced motion — fewer pluses + lower DPR. */
 const HeroPerfContext = createContext({ tier: "high", reducedMotion: false });
@@ -50,102 +59,20 @@ const HERO_COMMON_TEXT_PROPS = {
   color: "#ffffff"
 };
 
-const HERO_PLUS_COLORS = ["#c2fe0c", "#5200ff", "#ff0d1a"];
-const PLUS_GLOW_SCALE = 1.28;
-const PLUS_GLOW_OPACITY = { low: 0.07, high: 0.11 };
-const PLUS_EMISSIVE_INTENSITY = { low: 0.2, high: 0.32 };
 const HERO_MINI_COUNT = { low: 7, high: 14 };
 const HERO_MINI_SEED = 0xc0ffee42;
 const HERO_MINI_MIN_NORM_DIST = 0.34;
 const HERO_MINI_CANVAS_SPAN = 0.54;
 const HERO_MINI_COLLISION_PASSES = { low: 3, high: 4 };
 const HERO_MINI_MOVEMENT_EPS = 0.015;
+const HERO_MINI_ENTRY_DIST = 1.15;
+const HERO_MINI_ENTRY_SPEED = { min: 0.55, max: 1.05 };
+const HERO_MINI_REVEAL_DURATION = 1.25;
+const HERO_MINI_REVEAL_STAGGER = 0.07;
+/** Extra margin past the visible edge so wrap happens off-screen. */
+const HERO_MINI_WRAP_PAD = 0.55;
 
-/** Five circles in mesh space — hub + four arms — approximate the plus silhouette. */
-function buildPlusColliders(scale) {
-  const arm = 0.58 * scale;
-  const hubR = 0.36 * scale;
-  const armR = 0.27 * scale;
-  return [
-    { lx: 0, ly: 0, r: hubR },
-    { lx: 0, ly: arm, r: armR },
-    { lx: 0, ly: -arm, r: armR },
-    { lx: arm, ly: 0, r: armR },
-    { lx: -arm, ly: 0, r: armR }
-  ];
-}
-
-const _colliderVec = new THREE.Vector3();
-const _colliderMatrix = new THREE.Matrix4();
-
-const PLUS_OUTLINE_XY = [
-  [-0.34, 0.92],
-  [0.34, 0.92],
-  [0.34, 0.34],
-  [0.92, 0.34],
-  [0.92, -0.34],
-  [0.34, -0.34],
-  [0.34, -0.92],
-  [-0.34, -0.92],
-  [-0.34, -0.34],
-  [-0.92, -0.34],
-  [-0.92, 0.34],
-  [-0.34, 0.34]
-];
-
-const PLUS_GEOMETRY = extrudeRoundedPlus(0.1, {
-  bevelThickness: 0.11,
-  bevelSize: 0.11,
-  bevelSegments: 3,
-  curveSegments: 8
-});
-
-function buildPlusShape(cornerRadius) {
-  const points = PLUS_OUTLINE_XY.map(([x, y]) => new THREE.Vector2(x, y));
-  const rounded = points.map((point, index) => {
-    const previous = points[(index - 1 + points.length) % points.length];
-    const next = points[(index + 1) % points.length];
-    const fromPrevious = previous.clone().sub(point).normalize();
-    const toNext = next.clone().sub(point).normalize();
-    return {
-      point,
-      start: point.clone().add(fromPrevious.multiplyScalar(cornerRadius)),
-      end: point.clone().add(toNext.multiplyScalar(cornerRadius))
-    };
-  });
-  const shape = new THREE.Shape();
-  shape.moveTo(rounded[0].start.x, rounded[0].start.y);
-  rounded.forEach((corner, index) => {
-    const nextCorner = rounded[(index + 1) % rounded.length];
-    shape.quadraticCurveTo(corner.point.x, corner.point.y, corner.end.x, corner.end.y);
-    shape.lineTo(nextCorner.start.x, nextCorner.start.y);
-  });
-  shape.closePath();
-  return shape;
-}
-
-function extrudeRoundedPlus(cornerRadius, extrudeOverrides) {
-  const shape = buildPlusShape(cornerRadius);
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.58,
-    bevelEnabled: true,
-    ...extrudeOverrides
-  });
-  geometry.center();
-  return geometry;
-}
-
-function createSeededRandom(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function createSeededMiniPluses(viewport, count, seed = HERO_MINI_SEED) {
+function createSeededMiniPluses(viewport, count, { seed = HERO_MINI_SEED, reducedMotion = false } = {}) {
   const rand = createSeededRandom(seed);
   const xSpan = viewport.width * HERO_MINI_CANVAS_SPAN;
   const ySpan = viewport.height * HERO_MINI_CANVAS_SPAN;
@@ -175,11 +102,25 @@ function createSeededMiniPluses(viewport, count, seed = HERO_MINI_SEED) {
     }
 
     const angle = rand() * Math.PI * 2;
-    const speed = 0.22 + rand() * 0.42;
+    const cruise = 0.22 + rand() * 0.42;
+    const speed = reducedMotion
+      ? cruise
+      : HERO_MINI_ENTRY_SPEED.min +
+        rand() * (HERO_MINI_ENTRY_SPEED.max - HERO_MINI_ENTRY_SPEED.min);
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    const targetX = normX * xSpan;
+    const targetY = normY * ySpan;
+    const entry = reducedMotion ? 0 : HERO_MINI_ENTRY_DIST * (0.75 + rand() * 0.55);
+
     particles.push({
-      position: new THREE.Vector3(normX * xSpan, normY * ySpan, 0.16 + rand() * 0.3),
-      velocity: new THREE.Vector3(Math.cos(angle) * speed, Math.sin(angle) * speed, 0),
-      spin: (rand() > 0.5 ? 1 : -1) * (0.35 + rand() * 0.55),
+      position: new THREE.Vector3(
+        targetX - dirX * entry,
+        targetY - dirY * entry,
+        0.16 + rand() * 0.3
+      ),
+      velocity: new THREE.Vector3(dirX * speed, dirY * speed, 0),
+      spin: (rand() > 0.5 ? 1 : -1) * (0.45 + rand() * 0.7),
       scale: 0.34 + rand() * 0.16,
       colliders: null,
       color: HERO_PLUS_COLORS[Math.floor(rand() * HERO_PLUS_COLORS.length)]
@@ -187,6 +128,7 @@ function createSeededMiniPluses(viewport, count, seed = HERO_MINI_SEED) {
   }
 
   particles.forEach((p) => {
+    p.radius = p.scale * 0.92;
     p.colliders = buildPlusColliders(p.scale);
   });
 
@@ -221,165 +163,9 @@ function particlesNeedCollision(particles, dragging) {
   return false;
 }
 
-function getWorldColliders(particle, group, localColliders) {
-  _colliderMatrix.makeRotationFromEuler(group.rotation);
-  const px = particle.position.x;
-  const py = particle.position.y;
-  return localColliders.map((c) => {
-    _colliderVec.set(c.lx, c.ly, 0).applyMatrix4(_colliderMatrix);
-    return { x: px + _colliderVec.x, y: py + _colliderVec.y, r: c.r };
-  });
-}
-
-function circleOverlap(ax, ay, ar, bx, by, br) {
-  let dx = bx - ax;
-  let dy = by - ay;
-  let distSq = dx * dx + dy * dy;
-  const minDist = ar + br;
-
-  if (distSq === 0) {
-    dx = 0.001;
-    dy = 0;
-    distSq = dx * dx;
-  }
-
-  if (distSq >= minDist * minDist) return null;
-
-  const dist = Math.sqrt(distSq);
-  return {
-    nx: dx / dist,
-    ny: dy / dist,
-    pen: minDist - dist
-  };
-}
-
-function separateParticles(a, b, nx, ny, pen, aDrag, bDrag) {
-  let aShare = 0.5;
-  let bShare = 0.5;
-  if (aDrag && !bDrag) {
-    aShare = 0;
-    bShare = 1;
-  } else if (!aDrag && bDrag) {
-    aShare = 1;
-    bShare = 0;
-  }
-
-  a.position.x -= nx * pen * aShare;
-  a.position.y -= ny * pen * aShare;
-  b.position.x += nx * pen * bShare;
-  b.position.y += ny * pen * bShare;
-
-  if (aDrag && bDrag) return;
-
-  const rvx = b.velocity.x - a.velocity.x;
-  const rvy = b.velocity.y - a.velocity.y;
-  const velAlongNormal = rvx * nx + rvy * ny;
-  if (velAlongNormal >= 0) return;
-
-  const impulse = (-1.35 * velAlongNormal) / 2;
-  if (!aDrag) {
-    a.velocity.x -= impulse * nx;
-    a.velocity.y -= impulse * ny;
-  }
-  if (!bDrag) {
-    b.velocity.x += impulse * nx;
-    b.velocity.y += impulse * ny;
-  }
-}
-
-function resolveMiniCollisions(particles, dragging, groups) {
-  const count = particles.length;
-  let hits = 0;
-
-  const worldSets = new Array(count);
-  for (let i = 0; i < count; i++) {
-    const group = groups[i];
-    worldSets[i] =
-      group && particles[i].colliders ? getWorldColliders(particles[i], group, particles[i].colliders) : [];
-  }
-
-  for (let i = 0; i < count; i++) {
-    const worldA = worldSets[i];
-    if (!worldA.length) continue;
-
-    for (let j = i + 1; j < count; j++) {
-      const worldB = worldSets[j];
-      if (!worldB.length) continue;
-
-      for (const ca of worldA) {
-        for (const cb of worldB) {
-          const overlap = circleOverlap(ca.x, ca.y, ca.r, cb.x, cb.y, cb.r);
-          if (!overlap) continue;
-          hits++;
-          separateParticles(
-            particles[i],
-            particles[j],
-            overlap.nx,
-            overlap.ny,
-            overlap.pen,
-            dragging[i],
-            dragging[j]
-          );
-        }
-      }
-    }
-  }
-
-  return hits;
-}
-
-function MiniPlus({
-  particle,
-  groupRef,
-  low,
-  onPointerOver,
-  onPointerOut,
-  onPointerDown
-}) {
-  const glowOpacity = low ? PLUS_GLOW_OPACITY.low : PLUS_GLOW_OPACITY.high;
-  const emissiveIntensity = low ? PLUS_EMISSIVE_INTENSITY.low : PLUS_EMISSIVE_INTENSITY.high;
-
-  return (
-    <group
-      ref={groupRef}
-      position={[particle.position.x, particle.position.y, particle.position.z]}
-    >
-      <mesh
-        geometry={PLUS_GEOMETRY}
-        scale={particle.scale * PLUS_GLOW_SCALE}
-        raycast={() => null}
-      >
-        <meshBasicMaterial
-          color={particle.color}
-          transparent
-          opacity={glowOpacity}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh
-        geometry={PLUS_GEOMETRY}
-        scale={particle.scale}
-        onPointerOver={onPointerOver}
-        onPointerOut={onPointerOut}
-        onPointerDown={onPointerDown}
-      >
-        <meshStandardMaterial
-          color={particle.color}
-          roughness={0.34}
-          metalness={0.1}
-          emissive={particle.color}
-          emissiveIntensity={emissiveIntensity}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 const _dragWorld = new THREE.Vector3();
 
-function HeroMinPluses({ viewport, low }) {
+function HeroMinPluses({ viewport, low, reducedMotion }) {
   const count = low ? HERO_MINI_COUNT.low : HERO_MINI_COUNT.high;
   const collisionPasses = low ? HERO_MINI_COLLISION_PASSES.low : HERO_MINI_COLLISION_PASSES.high;
   const { camera, gl } = useThree();
@@ -389,10 +175,12 @@ function HeroMinPluses({ viewport, low }) {
   const activeDragRef = useRef(null);
   const particlesRef = useRef(null);
   const viewportSizeRef = useRef(null);
+  const introElapsedRef = useRef(0);
 
   if (!particlesRef.current || particlesRef.current.length !== count) {
-    particlesRef.current = createSeededMiniPluses(viewport, count);
+    particlesRef.current = createSeededMiniPluses(viewport, count, { reducedMotion });
     viewportSizeRef.current = { width: viewport.width, height: viewport.height };
+    introElapsedRef.current = 0;
   }
 
   useEffect(() => {
@@ -491,9 +279,15 @@ function HeroMinPluses({ viewport, low }) {
     const particles = particlesRef.current;
     if (!particles) return;
 
-    const xLimit = viewport.width * 0.55;
-    const yLimit = viewport.height * 0.55;
+    introElapsedRef.current += delta;
+    // Wrap past the visible frame (+ radius) so the teleport never shows.
+    const xLimit = viewport.width * 0.5 + HERO_MINI_WRAP_PAD;
+    const yLimit = viewport.height * 0.5 + HERO_MINI_WRAP_PAD;
     const dragging = draggingFlags.current;
+    const glowBase = low ? PLUS_GLOW_OPACITY.low : PLUS_GLOW_OPACITY.high;
+    const emissiveBase = low ? PLUS_EMISSIVE_INTENSITY.low : PLUS_EMISSIVE_INTENSITY.high;
+    const easeOut = (v) => 1 - Math.pow(1 - v, 4);
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
     for (let i = 0; i < count; i++) {
       dragging[i] = !!dragRef.current[i]?.dragging;
@@ -517,7 +311,7 @@ function HeroMinPluses({ viewport, low }) {
       p.position.y += p.velocity.y * delta;
       p.velocity.x *= 0.995;
       p.velocity.y *= 0.995;
-      wrapMiniPosition(p.position, xLimit, yLimit);
+      wrapMiniPosition(p.position, xLimit + (p.radius ?? 0), yLimit + (p.radius ?? 0));
     }
 
     if (runCollision) {
@@ -527,7 +321,8 @@ function HeroMinPluses({ viewport, low }) {
         }
       }
       for (let i = 0; i < count; i++) {
-        wrapMiniPosition(particles[i].position, xLimit, yLimit);
+        const p = particles[i];
+        wrapMiniPosition(p.position, xLimit + (p.radius ?? 0), yLimit + (p.radius ?? 0));
       }
     }
 
@@ -540,6 +335,26 @@ function HeroMinPluses({ viewport, low }) {
       group.rotation.x += delta * p.spin * 0.55;
       group.rotation.y += delta * p.spin * 0.9;
       group.rotation.z += delta * p.spin * 0.35;
+
+      const reveal = reducedMotion
+        ? 1
+        : easeOut(
+            clamp01(
+              (introElapsedRef.current - i * HERO_MINI_REVEAL_STAGGER) / HERO_MINI_REVEAL_DURATION
+            )
+          );
+      const appear = 0.88 + reveal * 0.12;
+      group.scale.setScalar(appear);
+
+      const glowMat = group.children[0]?.material;
+      const solidMat = group.children[1]?.material;
+      if (glowMat) glowMat.opacity = glowBase * reveal;
+      if (solidMat) {
+        solidMat.transparent = true;
+        solidMat.opacity = reveal;
+        solidMat.depthWrite = reveal > 0.92;
+        solidMat.emissiveIntensity = emissiveBase * (0.4 + reveal * 0.6);
+      }
     }
   });
 
@@ -592,6 +407,17 @@ function HeroMinPluses({ viewport, low }) {
           low={low}
           groupRef={(el) => {
             meshRefs.current[i] = el;
+            if (el && !reducedMotion && introElapsedRef.current < 0.001) {
+              el.scale.setScalar(0.88);
+              const glowMat = el.children[0]?.material;
+              const solidMat = el.children[1]?.material;
+              if (glowMat) glowMat.opacity = 0;
+              if (solidMat) {
+                solidMat.transparent = true;
+                solidMat.opacity = 0;
+                solidMat.depthWrite = false;
+              }
+            }
           }}
           {...bindDrag(i)}
         />
@@ -632,15 +458,15 @@ function HeroCanvasScene({ scrollRef }) {
     const clamp01 = (v) => Math.min(1, Math.max(0, v));
     const easeOut = (v) => 1 - Math.pow(1 - v, 3);
     const textReveal = reducedMotion ? 1 : easeOut(clamp01(elapsed / 0.52));
-    const plusReveal = reducedMotion ? 1 : easeOut(clamp01((elapsed - 0.14) / 0.72));
 
     if (textGroupRef.current) {
       textGroupRef.current.position.y = (1 - textReveal) * 0.22;
       textGroupRef.current.scale.setScalar(0.986 + textReveal * 0.014);
     }
     if (plusGroupRef.current) {
-      plusGroupRef.current.scale.setScalar(0.82 + plusReveal * 0.18);
-      plusGroupRef.current.position.z = (1 - plusReveal) * 0.75;
+      // No scale/z pop — pluses enter via their own momentum instead.
+      plusGroupRef.current.scale.setScalar(1);
+      plusGroupRef.current.position.z = 0;
     }
 
     const data = scrollRef?.current;
@@ -662,6 +488,12 @@ function HeroCanvasScene({ scrollRef }) {
       const pxPerUnitY = size.height / viewport.height;
       const cssTop = size.height / 2 - subtitleWorldY * pxPerUnitY;
       stage.style.setProperty("--hero-sub-top", `${cssTop.toFixed(2)}px`);
+
+      // Wait for title reveal + layout before showing subtitle (avoids jump).
+      const subtitleReadyAt = reducedMotion ? 0 : 0.58;
+      if (elapsed >= subtitleReadyAt) {
+        stage.classList.add("is-title-ready");
+      }
     }
   });
 
@@ -697,7 +529,7 @@ function HeroCanvasScene({ scrollRef }) {
       </group>
 
       <group ref={plusGroupRef}>
-        <HeroMinPluses viewport={viewport} low={low} />
+        <HeroMinPluses viewport={viewport} low={low} reducedMotion={reducedMotion} />
       </group>
     </group>
   );

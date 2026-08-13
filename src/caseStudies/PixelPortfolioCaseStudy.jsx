@@ -1,4 +1,4 @@
-import { CASE_STUDIES, caseStudyHref } from "../data/caseStudies.js";
+import StudyFooter from "../StudyFooter.jsx";
 import pixelPortfolio from "../../img/pixel-portfolio.png";
 import pixelWalkthrough from "../../img/pixel-portfolio-walkthrough.mp4";
 
@@ -33,10 +33,6 @@ const JOURNEY = [
 ];
 
 export default function PixelPortfolioCaseStudy({ study }) {
-  const nextStudy =
-    CASE_STUDIES.find((item) => item.id !== study.id && item.ready) ??
-    CASE_STUDIES.find((item) => item.id !== study.id);
-
   return (
     <article className="study">
       <header className="study-hero">
@@ -195,33 +191,7 @@ export default function PixelPortfolioCaseStudy({ study }) {
         </div>
       </section>
 
-      <footer className="study-footer">
-        <div>
-          <p className="about-kicker">Next</p>
-          <h2>Let’s design something that ships</h2>
-          <p className="about-lede">
-            Product design with the ability to take the interface into the product.
-          </p>
-        </div>
-        <div className="study-footer-actions">
-          <a className="case-studies-action case-studies-action--primary" href="mailto:chasenaidoo9@gmail.com">
-            Email
-          </a>
-          <a className="case-studies-action" href="/#work">
-            All work
-          </a>
-          {study.live ? (
-            <a className="case-studies-action" href={study.live} target="_blank" rel="noreferrer">
-              Live world
-            </a>
-          ) : null}
-          {nextStudy ? (
-            <a className="case-studies-action" href={caseStudyHref(nextStudy.id)}>
-              {nextStudy.client}
-            </a>
-          ) : null}
-        </div>
-      </footer>
+      <StudyFooter study={study} liveLabel="Live world" />
     </article>
   );
 }

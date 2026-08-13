@@ -1,5 +1,7 @@
 let heroPlusHoverCount = 0;
 let heroPlusDragCount = 0;
+/** @type {null | "left" | "right"} */
+let carouselArrow = null;
 
 export function enterHeroPlusCursor() {
   heroPlusHoverCount += 1;
@@ -24,4 +26,16 @@ export function resetHeroPlusCursor() {
 
 export function isHeroPlusCursorActive() {
   return heroPlusHoverCount > 0 || heroPlusDragCount > 0;
+}
+
+export function setCarouselArrow(direction) {
+  carouselArrow = direction === "left" || direction === "right" ? direction : null;
+}
+
+export function getCarouselArrow() {
+  return carouselArrow;
+}
+
+export function clearCarouselArrow() {
+  carouselArrow = null;
 }

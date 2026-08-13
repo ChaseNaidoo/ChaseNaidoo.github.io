@@ -3,8 +3,10 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { CASE_STUDIES, caseStudyHref } from "./data/caseStudies.js";
 import PageFrame from "./PageFrame.jsx";
 import SiteHeader from "./SiteHeader.jsx";
+import { useCarouselEdgeCursor } from "./useCarouselEdgeCursor.js";
 
 const HeroTitleCanvas = lazy(() => import("./HeroCanvas.jsx"));
+const ContactCanvas = lazy(() => import("./ContactCanvas.jsx"));
 
 const CASE_STUDY_IDLE_MS = 8000;
 
@@ -14,10 +16,74 @@ export default function App() {
   const scrollProgressRef = useRef({ scrollYPixels: 0, progress: 0 });
   const scrollRafRef = useRef(0);
   const cardsTrackRef = useRef(null);
+  const showcaseRef = useRef(null);
+  const showcaseDragRef = useRef({ active: false, startX: 0, dx: 0, pointerId: null });
   const skipCarouselScrollRef = useRef(true);
   const workInViewRef = useRef(false);
+  const contactRef = useRef(null);
   const idleTimerRef = useRef(0);
   const [activeStudyId, setActiveStudyId] = useState(CASE_STUDIES[0].id);
+  const [contactInView, setContactInView] = useState(false);
+  const [cardsEdges, setCardsEdges] = useState({ left: false, right: true });
+
+  const stepShowcase = (dir) => {
+    setActiveStudyId((currentId) => {
+      const currentIndex = CASE_STUDIES.findIndex((study) => study.id === currentId);
+      const nextIndex = (Math.max(0, currentIndex) + dir + CASE_STUDIES.length) % CASE_STUDIES.length;
+      const nextId = CASE_STUDIES[nextIndex].id;
+      window.history.replaceState(null, "", `#${nextId}`);
+      return nextId;
+    });
+  };
+
+  useCarouselEdgeCursor(showcaseRef, {
+    enabled: CASE_STUDIES.length > 1,
+    canGoLeft: true,
+    canGoRight: true,
+    edgeRatio: 0.18,
+    stealEdgeClicks: false,
+    onEdgeClick: (edge) => stepShowcase(edge === "left" ? -1 : 1)
+  });
+
+  useCarouselEdgeCursor(cardsTrackRef, {
+    canGoLeft: cardsEdges.left,
+    canGoRight: cardsEdges.right,
+    edgeRatio: 0.16,
+    stealEdgeClicks: true,
+    onEdgeClick: (edge) => {
+      const track = cardsTrackRef.current;
+      if (!track) return;
+      const card = track.querySelector(".case-studies-card");
+      const gap = 0.65 * 16;
+      const step = card ? card.getBoundingClientRect().width + gap : track.clientWidth * 0.55;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      track.scrollBy({
+        left: edge === "left" ? -step : step,
+        behavior: reduced ? "auto" : "smooth"
+      });
+    }
+  });
+
+  useEffect(() => {
+    const track = cardsTrackRef.current;
+    if (!track) return undefined;
+
+    const syncEdges = () => {
+      const max = Math.max(0, track.scrollWidth - track.clientWidth);
+      setCardsEdges({
+        left: track.scrollLeft > 6,
+        right: track.scrollLeft < max - 6
+      });
+    };
+
+    syncEdges();
+    track.addEventListener("scroll", syncEdges, { passive: true });
+    window.addEventListener("resize", syncEdges);
+    return () => {
+      track.removeEventListener("scroll", syncEdges);
+      window.removeEventListener("resize", syncEdges);
+    };
+  }, []);
 
   useEffect(() => {
     const syncHash = () => {
@@ -66,6 +132,22 @@ export default function App() {
       { threshold: [0, 0.35, 0.6] }
     );
     observer.observe(work);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const contact = contactRef.current;
+    if (!contact) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.25) {
+          setContactInView(true);
+        }
+      },
+      { threshold: [0, 0.25, 0.5] }
+    );
+    observer.observe(contact);
     return () => observer.disconnect();
   }, []);
 
@@ -159,6 +241,41 @@ export default function App() {
     window.history.replaceState(null, "", `#${id}`);
   };
 
+  const onShowcasePointerDown = (event) => {
+    if (CASE_STUDIES.length < 2) return;
+    if (event.target instanceof Element && event.target.closest("a, button, [role='tab']")) {
+      return;
+    }
+    showcaseDragRef.current = {
+      active: true,
+      startX: event.clientX,
+      dx: 0,
+      pointerId: event.pointerId
+    };
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onShowcasePointerMove = (event) => {
+    const drag = showcaseDragRef.current;
+    if (!drag.active || event.pointerId !== drag.pointerId) return;
+    drag.dx = event.clientX - drag.startX;
+  };
+
+  const onShowcasePointerEnd = (event) => {
+    const drag = showcaseDragRef.current;
+    if (!drag.active || (event.pointerId != null && event.pointerId !== drag.pointerId)) return;
+    const dx = drag.dx;
+    drag.active = false;
+    drag.pointerId = null;
+    if (Math.abs(dx) >= 42) {
+      stepShowcase(dx < 0 ? 1 : -1);
+    }
+  };
+
   return (
     <PageFrame>
       <SiteHeader />
@@ -223,20 +340,31 @@ export default function App() {
           aria-labelledby="case-studies-showcase-title"
         >
           <div className="case-studies-main">
-              <div className="case-studies-showcase">
-                <img
-                  key={activeStudy.id}
-                  src={activeStudy.image}
-                  alt={activeStudy.imageAlt}
-                  loading="lazy"
-                  style={
-                    activeStudy.imagePosition
-                      ? { objectPosition: activeStudy.imagePosition }
-                      : undefined
-                  }
-                />
+              <div
+                ref={showcaseRef}
+                className="case-studies-showcase"
+                onPointerDown={onShowcasePointerDown}
+                onPointerMove={onShowcasePointerMove}
+                onPointerUp={onShowcasePointerEnd}
+                onPointerCancel={onShowcasePointerEnd}
+              >
+                {CASE_STUDIES.map((study) => (
+                  <img
+                    key={study.id}
+                    src={study.image}
+                    alt={study.id === activeStudy.id ? study.imageAlt : ""}
+                    loading={study.id === activeStudy.id ? "eager" : "lazy"}
+                    className={study.id === activeStudy.id ? "is-active" : undefined}
+                    aria-hidden={study.id !== activeStudy.id}
+                    style={
+                      study.imagePosition
+                        ? { objectPosition: study.imagePosition }
+                        : undefined
+                    }
+                  />
+                ))}
 
-                <div className="case-studies-showcase-overlay">
+                <div key={activeStudy.id} className="case-studies-showcase-overlay">
                   <p className="case-studies-showcase-kicker">
                     {activeStudy.client}
                     <span aria-hidden="true"> / </span>
@@ -474,15 +602,33 @@ export default function App() {
           </div>
         </section>
 
-        <section id="contact" className="content-section contact-section">
-          <p className="about-kicker">Contact</p>
-          <h2>Let’s design something that ships</h2>
-          <p className="about-lede">Pretoria, South Africa</p>
-          <div className="contact-links">
-            <a href="mailto:chasenaidoo9@gmail.com">chasenaidoo9@gmail.com</a>
-            <a href="https://www.linkedin.com/in/cameron-chase-naidoo/" target="_blank" rel="noreferrer">
-              LinkedIn
-            </a>
+        <section
+          id="contact"
+          ref={contactRef}
+          className="content-section contact-section"
+        >
+          <div className="contact-plus-stage" aria-hidden="true">
+            <Suspense fallback={null}>
+              <ContactCanvas active={contactInView} />
+            </Suspense>
+          </div>
+          <div className="contact-copy">
+            <p className="about-kicker">Contact</p>
+            <h2>Let’s design something that ships</h2>
+            <p className="about-lede">Pretoria, South Africa</p>
+            <div className="contact-links">
+              <a className="case-studies-action case-studies-action--primary" href="mailto:chasenaidoo9@gmail.com">
+                chasenaidoo9@gmail.com
+              </a>
+              <a
+                className="case-studies-action"
+                href="https://www.linkedin.com/in/cameron-chase-naidoo/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                LinkedIn
+              </a>
+            </div>
           </div>
         </section>
       </main>
