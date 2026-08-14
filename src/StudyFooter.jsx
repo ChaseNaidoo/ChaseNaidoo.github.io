@@ -64,7 +64,7 @@ export default function StudyFooter({ study, liveLabel = "Live" }) {
               target="_blank"
               rel="noreferrer"
             >
-              GitHub
+              GitHub <span aria-hidden="true">[↗]</span>
             </a>
           ) : null}
           {study.live ? (

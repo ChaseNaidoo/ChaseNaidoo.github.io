@@ -504,8 +504,9 @@ export default function App() {
                     <p className="about-role">Product Design, AI Automation</p>
                     <p className="about-meta">InLogic / November 2024 – June 2025</p>
                     <p>
-                      Designed and built Balmer Agency’s Business Acceleration Discovery: guided chat
-                      into a ranked report and PDF, from conversation flow through React UI.
+                      Designed AI product experiences for client teams, from conversation flow and
+                      IA through high-fidelity UI and React when needed. Featured: Balmer Agency’s
+                      Business Acceleration Discovery (guided chat into ranked report and PDF).
                     </p>
                   </li>
                   <li className="about-timeline-pivot">
@@ -623,7 +624,15 @@ export default function App() {
                 target="_blank"
                 rel="noreferrer"
               >
-                LinkedIn
+                LinkedIn <span aria-hidden="true">[↗]</span>
+              </a>
+              <a
+                className="case-studies-action"
+                href="https://github.com/ChaseNaidoo"
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub <span aria-hidden="true">[↗]</span>
               </a>
             </div>
           </div>
