@@ -152,9 +152,7 @@ export default function BeforeAfterSlider({
         onKeyDown={onKeyDown}
       >
         <span className="ba-slider-line" aria-hidden="true" />
-        <span className="ba-slider-knob" aria-hidden="true">
-          ‹ ›
-        </span>
+        <span className="ba-slider-knob" aria-hidden="true" />
       </div>
     </div>
   );

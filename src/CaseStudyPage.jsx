@@ -39,7 +39,7 @@ export default function CaseStudyPage({ slug }) {
     return (
       <PageFrame className="study-shell">
         <SiteHeader {...HOME_NAV} />
-        <main className="study-missing">
+        <main id="main-content" className="study-missing">
           <p className="about-kicker">404</p>
           <h1>This case study isn’t here</h1>
           <p className="about-lede">The link may be old. Head back to selected work.</p>
@@ -57,7 +57,7 @@ export default function CaseStudyPage({ slug }) {
     return (
       <PageFrame className="study-shell">
         <SiteHeader {...HOME_NAV} />
-        <main className="study-missing">
+        <main id="main-content" className="study-missing">
           <p className="about-kicker">
             {study.index} / {study.client}
           </p>
@@ -84,7 +84,7 @@ export default function CaseStudyPage({ slug }) {
   return (
     <PageFrame className="study-shell">
       <SiteHeader {...HOME_NAV} />
-      <main>
+      <main id="main-content">
         <StudyBody study={study} />
       </main>
     </PageFrame>

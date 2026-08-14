@@ -275,9 +275,13 @@ function HeroMinPluses({ viewport, low, reducedMotion }) {
     };
   }, [camera, gl]);
 
-  useFrame((_, delta) => {
+  useFrame((_, rawDelta) => {
     const particles = particlesRef.current;
     if (!particles) return;
+
+    // The clock keeps running while the frameloop is paused (hidden tab), so the
+    // first frame back can carry a huge delta and fling the pluses out of frame.
+    const delta = Math.min(rawDelta, 1 / 30);
 
     introElapsedRef.current += delta;
     // Wrap past the visible frame (+ radius) so the teleport never shows.

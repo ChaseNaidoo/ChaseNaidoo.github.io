@@ -24,7 +24,6 @@ export default function App() {
   const idleTimerRef = useRef(0);
   const [activeStudyId, setActiveStudyId] = useState(CASE_STUDIES[0].id);
   const [contactInView, setContactInView] = useState(false);
-  const [cardsEdges, setCardsEdges] = useState({ left: false, right: true });
 
   const stepShowcase = (dir) => {
     setActiveStudyId((currentId) => {
@@ -44,46 +43,6 @@ export default function App() {
     stealEdgeClicks: false,
     onEdgeClick: (edge) => stepShowcase(edge === "left" ? -1 : 1)
   });
-
-  useCarouselEdgeCursor(cardsTrackRef, {
-    canGoLeft: cardsEdges.left,
-    canGoRight: cardsEdges.right,
-    edgeRatio: 0.16,
-    stealEdgeClicks: true,
-    onEdgeClick: (edge) => {
-      const track = cardsTrackRef.current;
-      if (!track) return;
-      const card = track.querySelector(".case-studies-card");
-      const gap = 0.65 * 16;
-      const step = card ? card.getBoundingClientRect().width + gap : track.clientWidth * 0.55;
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      track.scrollBy({
-        left: edge === "left" ? -step : step,
-        behavior: reduced ? "auto" : "smooth"
-      });
-    }
-  });
-
-  useEffect(() => {
-    const track = cardsTrackRef.current;
-    if (!track) return undefined;
-
-    const syncEdges = () => {
-      const max = Math.max(0, track.scrollWidth - track.clientWidth);
-      setCardsEdges({
-        left: track.scrollLeft > 6,
-        right: track.scrollLeft < max - 6
-      });
-    };
-
-    syncEdges();
-    track.addEventListener("scroll", syncEdges, { passive: true });
-    window.addEventListener("resize", syncEdges);
-    return () => {
-      track.removeEventListener("scroll", syncEdges);
-      window.removeEventListener("resize", syncEdges);
-    };
-  }, []);
 
   useEffect(() => {
     const syncHash = () => {
@@ -241,6 +200,27 @@ export default function App() {
     window.history.replaceState(null, "", `#${id}`);
   };
 
+  const onCardsKeyDown = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+
+    let nextIndex;
+    if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = CASE_STUDIES.length - 1;
+    } else {
+      const dir = event.key === "ArrowRight" ? 1 : -1;
+      nextIndex = (activeIndex + dir + CASE_STUDIES.length) % CASE_STUDIES.length;
+    }
+
+    const nextId = CASE_STUDIES[nextIndex].id;
+    selectStudy(nextId);
+    requestAnimationFrame(() => {
+      cardsTrackRef.current?.querySelector(`#case-tab-${nextId}`)?.focus();
+    });
+  };
+
   const onShowcasePointerDown = (event) => {
     if (CASE_STUDIES.length < 2) return;
     if (event.target instanceof Element && event.target.closest("a, button, [role='tab']")) {
@@ -280,7 +260,7 @@ export default function App() {
     <PageFrame>
       <SiteHeader />
 
-      <main id="top">
+      <main id="main-content">
         <section className="hero" ref={heroRef}>
           <div className="hero-bloom" />
 
@@ -288,7 +268,11 @@ export default function App() {
             <div className="hero-title-stage">
               <div className="hero-lede">
                 <h1 className="hero-title sr-only">Where art meets engineering</h1>
-                <p className="hero-subtitle">Product Design | Front-end developer</p>
+                <p className="hero-name">Cameron Chase Naidoo</p>
+                <p className="hero-subtitle">Product Designer &amp; Front-end Engineer</p>
+                <p className="hero-tagline">
+                  I design AI and product experiences, then ship them in code.
+                </p>
               </div>
               <Suspense
                 fallback={
@@ -302,7 +286,7 @@ export default function App() {
               </Suspense>
             </div>
 
-            <section className="scroll-cta-section" aria-label="Scroll to case studies">
+            <section className="scroll-cta-section" aria-label="Jump to case studies">
               <a href="#work" className="scroll-cta-link glass-chrome">
                 <span className="scroll-cta-indicator" aria-hidden="true">
                   <span className="scroll-cta-arrows">
@@ -326,8 +310,8 @@ export default function App() {
                     </svg>
                   </span>
                 </span>
-                <span className="scroll-cta-label">Scroll</span>
-                <span className="sr-only">Scroll down to case studies</span>
+                <span className="scroll-cta-label">View work</span>
+                <span className="sr-only">Jump down to the case studies</span>
               </a>
             </section>
           </div>
@@ -342,6 +326,9 @@ export default function App() {
           <div className="case-studies-main">
               <div
                 ref={showcaseRef}
+                id="case-studies-panel"
+                role="tabpanel"
+                aria-labelledby={`case-tab-${activeStudy.id}`}
                 className="case-studies-showcase"
                 onPointerDown={onShowcasePointerDown}
                 onPointerMove={onShowcasePointerMove}
@@ -414,18 +401,13 @@ export default function App() {
                   </div>
                 </div>
 
-                <div
-                  className="case-studies-progress"
-                  role="tablist"
-                  aria-label="Featured projects"
-                >
+                <div className="case-studies-progress">
                   {CASE_STUDIES.map((study, index) => (
                     <button
                       key={study.id}
                       type="button"
-                      role="tab"
-                      aria-selected={index === activeIndex}
                       aria-label={`Show ${study.title}`}
+                      aria-current={index === activeIndex ? "true" : undefined}
                       className={`case-studies-progress-tick${index === activeIndex ? " is-active" : ""}`}
                       onClick={() => selectStudy(study.id)}
                     />
@@ -439,6 +421,7 @@ export default function App() {
                   className="case-studies-cards"
                   role="tablist"
                   aria-label="Case study projects"
+                  onKeyDown={onCardsKeyDown}
                 >
                 {CASE_STUDIES.map((study) => {
                   const isActive = activeStudyId === study.id;
@@ -453,7 +436,10 @@ export default function App() {
                       <button
                         type="button"
                         role="tab"
+                        id={`case-tab-${study.id}`}
                         aria-selected={isActive}
+                        aria-controls="case-studies-panel"
+                        tabIndex={isActive ? 0 : -1}
                         className="case-studies-card-select"
                         onClick={() => selectStudy(study.id)}
                       >
@@ -499,9 +485,9 @@ export default function App() {
             <p className="about-kicker">About</p>
             <h2>Product designer who can ship the interface</h2>
             <p className="about-lede">
-              I design AI and product experiences from research through high-fidelity UI — then implement them
+              I design AI and product experiences from research through high-fidelity UI, then implement them
               in code. That mix means I can sit with product, talk fluently with engineering, and take ideas
-              further than a handoff. Based in Pretoria, South Africa.
+              further than a handoff.
             </p>
 
             <div className="about-grid">
@@ -512,8 +498,8 @@ export default function App() {
                     <p className="about-role">Product Design &amp; Front-end</p>
                     <p className="about-meta">Fancam / June 2025 – Present</p>
                     <p>
-                      Leading the end-to-end UX redesign of Fancam’s live NFL experience — viewer,
-                      camera, postcards, and shop — then shipping the interface on existing
+                      Leading the end-to-end UX redesign of Fancam’s live NFL experience across
+                      viewer, camera, postcards, and shop, then shipping the interface on existing
                       architecture with engineering.
                     </p>
                   </li>
@@ -522,8 +508,16 @@ export default function App() {
                     <p className="about-meta">InLogic / November 2024 – June 2025</p>
                     <p>
                       Designed AI product experiences including Balmer Agency’s Business Acceleration
-                      Discovery assistant — from conversation flow and information architecture through
+                      Discovery assistant, from conversation flow and information architecture through
                       high-fidelity UI.
+                    </p>
+                  </li>
+                  <li className="about-timeline-pivot">
+                    <p className="about-role">Earlier: science and lab work</p>
+                    <p>
+                      Before design and code, I worked in QC and research labs. That is where I
+                      learned to test against a standard, document what happened, and trust
+                      evidence over opinion. It is still how I approach product decisions.
                     </p>
                   </li>
                   <li>
@@ -615,10 +609,17 @@ export default function App() {
           <div className="contact-copy">
             <p className="about-kicker">Contact</p>
             <h2>Let’s design something that ships</h2>
-            <p className="about-lede">Pretoria, South Africa</p>
             <div className="contact-links">
               <a className="case-studies-action case-studies-action--primary" href="mailto:chasenaidoo9@gmail.com">
                 chasenaidoo9@gmail.com
+              </a>
+              <a
+                className="case-studies-action"
+                href="/Cameron-Chase-Naidoo-Resume.pdf"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Resume
               </a>
               <a
                 className="case-studies-action"

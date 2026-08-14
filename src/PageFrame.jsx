@@ -61,6 +61,9 @@ export default function PageFrame({ children, className = "" }) {
       onPointerLeave={handlePointerLeave}
     >
       <CustomCursor />
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       {children}
     </div>
   );

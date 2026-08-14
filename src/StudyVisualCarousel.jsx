@@ -27,13 +27,6 @@ export default function StudyVisualCarousel({ slides, label = "Product screens" 
   });
 
   useEffect(() => {
-    slides.forEach((slide) => {
-      const img = new Image();
-      img.src = slide.src;
-    });
-  }, [slides]);
-
-  useEffect(() => {
     if (paused || count < 2) return undefined;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return undefined;
@@ -106,6 +99,8 @@ export default function StudyVisualCarousel({ slides, label = "Product screens" 
             aria-hidden={i !== index}
             data-active={i === index ? "true" : "false"}
             draggable={false}
+            loading={i === 0 ? "eager" : "lazy"}
+            decoding="async"
           />
         ))}
       </div>

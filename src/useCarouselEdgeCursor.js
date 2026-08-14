@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { clearCarouselArrow, setCarouselArrow } from "./cursorInteractive.js";
 
 const DEFAULT_EDGE = 0.22;
+const INTERACTIVE_SELECTOR = "a, button, [role='button'], [role='tab'], input";
 
 /**
  * Desktop edge affordance for carousels: updates custom cursor arrow + optional click.
@@ -42,8 +43,16 @@ export function useCarouselEdgeCursor(
       return null;
     };
 
+    /** Edge clicks are handed to the nested control instead, so the arrow would lie. */
+    const isDeferredTarget = (target) => {
+      if (optionsRef.current.stealEdgeClicks) return false;
+      if (!(target instanceof Element)) return false;
+      const interactive = target.closest(INTERACTIVE_SELECTOR);
+      return Boolean(interactive) && interactive !== el;
+    };
+
     const onMove = (event) => {
-      if (event.pointerType === "touch") {
+      if (event.pointerType === "touch" || isDeferredTarget(event.target)) {
         clearCarouselArrow();
         return;
       }
@@ -59,10 +68,7 @@ export function useCarouselEdgeCursor(
       const handler = optionsRef.current.onEdgeClick;
       if (!handler) return;
 
-      if (!optionsRef.current.stealEdgeClicks && event.target instanceof Element) {
-        const interactive = event.target.closest("a, button, [role='button'], [role='tab'], input");
-        if (interactive && interactive !== el) return;
-      }
+      if (isDeferredTarget(event.target)) return;
 
       event.preventDefault();
       event.stopPropagation();

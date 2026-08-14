@@ -1,6 +1,6 @@
-import fancamAfter from "../../img/fancam-after.png";
-import balmerChat from "../../img/balmer-chat.png";
-import pixelPortfolioVisual from "../../img/pixel-portfolio.png";
+import fancamAfter from "../../img/fancam-after.webp";
+import balmerChat from "../../img/balmer-chat.webp";
+import pixelPortfolioVisual from "../../img/pixel-world.webp";
 
 export const CASE_STUDIES = [
   {
@@ -10,11 +10,11 @@ export const CASE_STUDIES = [
     period: "2025–Present",
     title: "Fancam Event Experience",
     lede:
-      "Modernized the live NFL Fancam product end-to-end — camera viewer, find-your-seat, postcards, and shop — then shipped it on the existing panoramic stack.",
-    outcome: "One event system: find yourself, keep the moment, buy merch — without a platform rewrite.",
+      "Designed the fan-facing experience across viewer, camera, postcards, and shop, then shipped it on the live platform alongside responsive discovery, theming, and commerce tooling.",
+    outcome: "After launch, engaged fans went deeper: on-page interactions up 50%, with about 1 in 4 returning.",
     image: fancamAfter,
-    imageAlt: "Redesigned Fancam viewer with an event header, in-crowd tags, and a camera dock",
-    imagePosition: "center 78%",
+    imageAlt: "Redesigned Fancam viewer with event header, in-crowd tags, and camera dock",
+    imagePosition: "center center",
     github: null,
     live: "https://vikings.fancam.com/20260104?s=west-view&atv=10.0&ath=-96.453&fov=50.0",
     ready: true
@@ -26,8 +26,8 @@ export const CASE_STUDIES = [
     period: "2024–2025",
     title: "AI Business Acceleration Discovery",
     lede:
-      "Designed a branded discovery chatbot for Balmer Agency — editorial atmosphere beside a calm chat — so leaders can map AI opportunity in a short guided conversation.",
-    outcome: "Discovery that feels like brand, not a bolted-on bot. Ready in one click.",
+      "Designed and built Balmer Agency’s AI Business Acceleration Discovery: branded guided chat into a ranked opportunity report and PDF.",
+    outcome: "Live React prototype with n8n-backed chat, report page, and PDF export. Design-led case: no engagement metrics yet.",
     image: balmerChat,
     imageAlt: "Balmer AI discovery assistant with brand photography and chat interface",
     imagePosition: "center top",
@@ -42,12 +42,12 @@ export const CASE_STUDIES = [
     period: "2024",
     title: "Pixel Art Portfolio",
     lede:
-      "Built an interactive pixel-art portfolio where visitors explore projects by moving through a handcrafted world — turning a resume into a playful spatial experience.",
-    outcome: "A memorable self-initiated build that showcases interaction design, motion, and front-end craft.",
+      "Self-initiated Kaboom.js portfolio: a top-down pixel world with quest log, dialogue, and credentials you find by exploring.",
+    outcome: "Live interactive spatial CV on Vercel. Interview feedback: memorable, and it still gets people to the resume.",
     image: pixelPortfolioVisual,
-    imageAlt: "Pixel art portfolio with lab, room, overworld map, and quest log",
+    imageAlt: "Pixel art portfolio world with lab, credentials room, overworld map, and quest log",
     imagePosition: "center center",
-    github: null,
+    github: "https://github.com/ChaseNaidoo/Pixel_art_portfolio",
     live: "https://pixel-art-portfolio.vercel.app/",
     ready: true
   }

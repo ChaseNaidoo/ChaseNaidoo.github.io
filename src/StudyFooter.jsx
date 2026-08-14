@@ -46,12 +46,30 @@ export default function StudyFooter({ study, liveLabel = "Live" }) {
           <a className="case-studies-action case-studies-action--primary" href="mailto:chasenaidoo9@gmail.com">
             Email
           </a>
+          <a
+            className="case-studies-action"
+            href="/Cameron-Chase-Naidoo-Resume.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Resume
+          </a>
           <a className="case-studies-action" href="/#work">
             All work
           </a>
+          {study.github ? (
+            <a
+              className="case-studies-action"
+              href={study.github}
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
+          ) : null}
           {study.live ? (
             <a className="case-studies-action" href={study.live} target="_blank" rel="noreferrer">
-              {liveLabel}
+              {liveLabel} <span aria-hidden="true">[↗]</span>
             </a>
           ) : null}
           {nextStudy ? (

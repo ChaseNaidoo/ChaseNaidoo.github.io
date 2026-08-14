@@ -1,57 +1,16 @@
 import BeforeAfterSlider from "../BeforeAfterSlider.jsx";
 import StudyFooter from "../StudyFooter.jsx";
 import StudyVisualCarousel from "../StudyVisualCarousel.jsx";
-import fancamBefore from "../../img/fancam-before.png";
-import fancamAfter from "../../img/fancam-after.png";
-import fancamCamera from "../../img/fancam-camera.png";
-import fancamGalleryMenu from "../../img/fancam-gallery-menu.png";
-import fancamPostcard from "../../img/fancam-postcard.png";
-import fancamShopProduct from "../../img/fancam-shop-product.png";
-import fancamShopCustomize from "../../img/fancam-shop-customize.png";
-import fancamShopCart from "../../img/fancam-shop-cart.png";
-import fancamShopDock from "../../img/fancam-shop-dock.png";
-
-const PROCESS = [
-  {
-    index: "01",
-    title: "Audit",
-    body: "Mapped viewer chrome, CTAs, and shop entry points — what helped fans find themselves vs. what competed for attention."
-  },
-  {
-    index: "02",
-    title: "Reframe",
-    body: "One product model: camera for the scene, shop for the merch — not a pile of labeled feature buttons."
-  },
-  {
-    index: "03",
-    title: "System",
-    body: "Shared hierarchy and motion language across dock, side menu, postcards, and shop so the event feels like one app."
-  },
-  {
-    index: "04",
-    title: "Ship",
-    body: "Designed and built on the live panoramic stack — no greenfield rewrite, NFL events as the production floor."
-  }
-];
-
-const DECISIONS = [
-  {
-    title: "Camera over labels",
-    body: "Tag Yourself and Digital Postcard named features. Fans needed a shutter and a keep loop — so the dock became the product."
-  },
-  {
-    title: "Chrome off the glass",
-    body: "Secondary actions moved into a side menu so the panorama stays the stage. Shop and tools are reachable without covering the crowd."
-  },
-  {
-    title: "Shop as a surface",
-    body: "Merch isn’t a bolted link. The shop interface got the same design pass — browse and buy in the event language, not a generic storefront drop-in."
-  },
-  {
-    title: "Ship inside the stack",
-    body: "Gigapixel viewer constraints came first. Every pattern had to survive existing architecture, performance, and live-event reality."
-  }
-];
+import fancamBefore from "../../img/fancam-before.webp";
+import fancamAfter from "../../img/fancam-after.webp";
+import fancamCamera from "../../img/fancam-camera.webp";
+import fancamFindSeat from "../../img/fancam-find-seat.webp";
+import fancamGalleryMenu from "../../img/fancam-gallery-menu.webp";
+import fancamPostcard from "../../img/fancam-postcard.webp";
+import fancamShopProduct from "../../img/fancam-shop-product.webp";
+import fancamShopCustomize from "../../img/fancam-shop-customize.webp";
+import fancamShopCart from "../../img/fancam-shop-cart.webp";
+import fancamShopDock from "../../img/fancam-shop-dock.webp";
 
 const VIEWER_JOURNEY = [
   { index: "01", title: "Land", body: "Arrive in the event scene" },
@@ -61,62 +20,99 @@ const VIEWER_JOURNEY = [
 ];
 
 const SHOP_JOURNEY = [
-  { index: "01", title: "Enter", body: "Cart on the dock — shop from the scene" },
+  { index: "01", title: "Enter", body: "Cart on the dock, shop from the scene" },
   { index: "02", title: "Browse", body: "Product detail over the live scene" },
-  { index: "03", title: "Personalize", body: "Pull a frame from Fancam or upload" },
+  { index: "03", title: "Add", body: "Confirm the item without leaving the event" },
   { index: "04", title: "Cart", body: "Review qty, subtotal, checkout" }
+];
+
+const DECISIONS = [
+  {
+    title: "Chrome off the glass",
+    body:
+      "The legacy viewer ringed the panorama with named feature buttons that competed with the crowd photo. I moved actions into a bottom dock and put the tags in the crowd itself, so the image is the interface.",
+    trade:
+      "Icons are less explicit than labels, so tooltips ease first-time adoption. Once fans know the dock, the labels get out of the way."
+  },
+  {
+    title: "One primary action per step",
+    body:
+      "Find, capture, and keep each get their own moment. In camera mode the shutter is the only primary control and everything else steps back.",
+    trade:
+      "Fewer options visible at once, which is the point on a phone held one-handed in a stadium."
+  },
+  {
+    title: "Theming as tokens, not per-event CSS",
+    body:
+      "Every event used to be hand-styled, so each new team or sponsor became bespoke front-end work. I moved look and feel into reusable theme values the team sets per event.",
+    trade:
+      "Less bespoke art direction per event, in exchange for launches that need no new styling."
+  },
+  {
+    title: "Keep commerce inside the event",
+    body:
+      "Shop sits on the same dock, with product detail and cart layered over the panorama rather than linking out to a separate store.",
+    trade:
+      "More overlay state to manage, but the fan never loses their seat to buy the memento."
+  }
 ];
 
 const PRODUCT_SLIDES = [
   {
     src: fancamAfter,
-    alt: "Explore state with event header, tags, and camera dock",
-    caption: "Explore — event chrome, tags in the crowd, camera dock",
+    alt: "Explore state with event header, in-crowd tags, and camera dock",
+    caption: "Explore: event chrome, tags in the crowd, camera dock",
     shotClass: ""
   },
   {
-    src: fancamGalleryMenu,
-    alt: "Gallery drawer and side menu around the stadium viewer",
-    caption: "Gallery + side menu — chrome off the glass",
-    shotClass: "study-shot--ui"
+    src: fancamFindSeat,
+    alt: "Find Your Seat modal with section, row, seat selectors, and email",
+    caption: "Find seat: locate yourself without leaving the panorama",
+    shotClass: "study-shot--modal"
   },
   {
     src: fancamCamera,
     alt: "Camera capture mode with viewfinder grid and shutter",
-    caption: "Capture — shutter is the CTA",
+    caption: "Capture: the shutter is the primary action",
     shotClass: ""
   },
   {
     src: fancamPostcard,
-    alt: "Postcard modal with edit, save, and share actions",
-    caption: "Postcard — edit, save, share, QR",
+    alt: "Postcard overlay with edit, save, share, and more photos from this view",
+    caption: "Postcard: edit, save, share, and related frames",
     shotClass: "study-shot--modal"
+  },
+  {
+    src: fancamGalleryMenu,
+    alt: "Gallery drawer with captured photos over the stadium viewer",
+    caption: "Gallery: captures live beside the panorama, without the side menu",
+    shotClass: "study-shot--ui"
   }
 ];
 
 const SHOP_SLIDES = [
   {
     src: fancamShopDock,
-    alt: "Event panorama with bottom dock showing cart badge on the shop icon",
-    caption: "Entry — shop lives on the dock, cart count on the glass",
+    alt: "Event panorama with shop on the bottom dock",
+    caption: "Entry: shop lives on the dock, over the live scene",
     shotClass: ""
   },
   {
     src: fancamShopProduct,
     alt: "Shop modal with ceramic mug product detail and other products row",
-    caption: "Product — detail, variants, add to cart over the panorama",
+    caption: "Product: detail, variants, add to cart over the panorama",
     shotClass: "study-shot--modal"
   },
   {
     src: fancamShopCustomize,
-    alt: "Shop personalization with Choose from Fancam and Upload photo options",
-    caption: "Personalize — memorabilia from the fancam frame",
+    alt: "Shop modal after adding a ceramic mug, with Added confirmation",
+    caption: "Added: confirmation stays in the event, cart badge updates",
     shotClass: "study-shot--modal"
   },
   {
     src: fancamShopCart,
     alt: "Shop cart overlay with line items, subtotal, and checkout",
-    caption: "Cart — review and checkout without leaving the event",
+    caption: "Cart: review and checkout without leaving the event",
     shotClass: "study-shot--modal"
   }
 ];
@@ -131,11 +127,12 @@ export default function FancamCaseStudy({ study }) {
         <p className="about-kicker">
           {study.index} / {study.client} / {study.period}
         </p>
-        <h1>Modernizing a live event product — viewer, camera, and shop</h1>
+        <h1>Modernizing Fancam’s live-event experience, then shipping it</h1>
         <p className="study-lede">
-          End-to-end product design and front-end for Fancam’s NFL experience: replace Tag Yourself
-          with a camera for finding yourself, clear the chrome, ship postcards people keep — and
-          redesign the shop so merch feels like part of the same event, not a detour.
+          Fancam turns a gigapixel crowd photo into an interactive event product: find your seat,
+          capture the moment, share it, buy the memento. I led the fan-facing redesign of the viewer,
+          camera, postcards, and shop, then built it into the live platform alongside the theming and
+          commerce tooling that lets the team run it.
         </p>
 
         <dl className="study-meta">
@@ -145,18 +142,18 @@ export default function FancamCaseStudy({ study }) {
           </div>
           <div>
             <dt>Scope</dt>
-            <dd>Viewer, camera, gallery, postcards, shop</dd>
+            <dd>Fan UX, theming, admin, commerce</dd>
           </div>
           <div>
-            <dt>Constraint</dt>
-            <dd>Live stack, gigapixel viewer</dd>
+            <dt>Stack</dt>
+            <dd>Node/Express, Vue, Less, krpano</dd>
           </div>
           <div>
             <dt>Live</dt>
             <dd>
               {study.live ? (
                 <a href={study.live} target="_blank" rel="noreferrer">
-                  Open Fancam
+                  Open Fancam <span aria-hidden="true">[↗]</span>
                 </a>
               ) : (
                 "In product"
@@ -173,70 +170,70 @@ export default function FancamCaseStudy({ study }) {
           beforeAlt="Legacy Fancam viewer with a Tag Yourself call to action and labeled buttons around the panorama"
           afterAlt="Redesigned Fancam viewer with an event header, in-crowd tags, and a camera dock"
         />
-        <figcaption>Before → after on the glass. Tag Yourself becomes find yourself.</figcaption>
+        <figcaption>
+          Product direction: reduce legacy chrome and organize the live panorama around finding,
+          capturing, and keeping the moment.
+        </figcaption>
       </figure>
 
       <section className="study-layout" aria-label="Case study overview">
         <div className="study-snap">
           <article className="study-snap-cell">
             <p className="study-label">Problem</p>
-            <h2>Feature soup on a live stage</h2>
+            <h2>Desktop-era UI, mobile-era fans</h2>
             <p>
-              Fans showed up to find themselves in a stadium panorama. The UI answered with labeled
-              buttons, competing CTAs, and a shop that felt disconnected from the moment on the
-              glass.
+              Most fans now arrive on a phone from a social link, but the viewer still leaned on
+              desktop patterns and named feature buttons that competed with the crowd. Per-event look
+              and feel was hand-built, so every new team or sponsor became bespoke work.
             </p>
           </article>
           <article className="study-snap-cell">
             <p className="study-label">Approach</p>
-            <h2>One event system</h2>
+            <h2>One fan sequence, one system</h2>
             <p>
-              Treat viewer and shop as surfaces of the same product. Camera dock for the job-to-be-done,
-              side menu for secondary tools, shop redesigned to match hierarchy, pace, and brand.
+              Reframe the viewer around a clear sequence of find, capture, then keep, and reuse that
+              hierarchy across postcards, gallery, and shop. Turn per-event styling into reusable
+              theme tokens, and modernize the operator tools inside the existing architecture.
             </p>
           </article>
           <article className="study-snap-cell">
             <p className="study-label">Outcome</p>
-            <h2>Shipped on game day</h2>
+            <h2>Designed, then shipped live</h2>
             <p>
-              A clearer find → capture → keep loop, plus a shop path that stays in the Fancam
-              language — designed and implemented on the existing live architecture.
+              A mobile-first, sequenced experience running on the production platform. Client
+              engagement data shows fans who arrive are spending longer and interacting more, even
+              when overall page views are softer.
             </p>
           </article>
         </div>
 
         <aside className="study-edge-band">
-          <p className="study-label">The edge</p>
+          <p className="study-label">My role</p>
           <p>
-            <strong>Designed it. Built it.</strong> Viewer, interaction patterns, and shop UI went
-            through the same hands — so engineering constraints shaped the design before handoff,
-            and the design survived production.
+            <strong>I designed the fan experience and built it into the live product.</strong>{" "}
+            I owned the viewer, camera, postcard, and shop direction, then implemented it in the
+            existing stack: Vue admin modules, Less theming, krpano-facing config, and the commerce
+            tooling around Shopify and Printify. Because the same person designed and shipped it,
+            decisions were tested against real data models and release constraints instead of getting
+            lost in handoff.
           </p>
         </aside>
 
-        <div className="study-context">
-          <p className="study-label">Context</p>
-          <h2>A product fans open in the stands</h2>
-          <p>
-            Fancam is a high-resolution stadium viewer used around live NFL events. People aren’t
-            browsing casually — they’re locating a seat, grabbing a moment, sharing it, and
-            sometimes buying merch while the game is still the emotional center. Legacy UI treated
-            those as separate features. The redesign treats them as one continuous event experience
-            that still has to run on the panoramic stack already in production.
-          </p>
-        </div>
-
-        <div className="study-decisions">
-          <p className="study-label">Key decisions</p>
+        <section className="study-decisions" aria-label="Design decisions">
+          <p className="study-label">Decisions</p>
           <ol>
-            {DECISIONS.map((item) => (
-              <li key={item.title}>
-                <strong>{item.title}</strong>
-                <p>{item.body}</p>
+            {DECISIONS.map((decision) => (
+              <li key={decision.title}>
+                <strong>{decision.title}</strong>
+                <p>{decision.body}</p>
+                <p className="study-decision-trade">
+                  <span>Tradeoff</span>
+                  {decision.trade}
+                </p>
               </li>
             ))}
           </ol>
-        </div>
+        </section>
 
         <div className="study-showcase">
           <div className="study-showcase-rail">
@@ -274,59 +271,92 @@ export default function FancamCaseStudy({ study }) {
           </div>
         </div>
 
-        <div className="study-surface study-surface--compact">
-          <div className="study-surface-copy">
-            <p className="study-label">Shop interface</p>
-            <h2>Merch from the moment on the glass</h2>
+        <div className="study-results">
+          <div className="study-results-intro">
+            <p className="study-label">Client engagement</p>
+            <h2>Fans who arrive are going deeper</h2>
             <p>
-              The shop sits on the panorama as a modal surface — browse products, personalize with a
-              Fancam frame or upload, then cart and checkout — without dumping fans into a generic
-              storefront. Memorabilia is the bridge: the same scene they found themselves in becomes
-              the print on the mug or case.
+              On a live client event, overall page views were down, but the people who opened the
+              Fancam spent more time and interacted more. Scale and repeat usage also show this is
+              not a one-and-done novelty click.
             </p>
           </div>
-          <aside className="study-surface-note">
-            <p className="study-label">In the system</p>
-            <ul>
-              <li>Shop over the live event scene</li>
-              <li>Choose from Fancam → product art</li>
-              <li>Cart + checkout in-product</li>
-              <li>Other products rail for browse</li>
-            </ul>
-          </aside>
-        </div>
-
-        <div className="study-process-strip">
-          <p className="study-label">Process</p>
-          <ol>
-            {PROCESS.map((step) => (
-              <li key={step.index}>
-                <span>{step.index}</span>
-                <strong>{step.title}</strong>
-                <p>{step.body}</p>
-              </li>
-            ))}
-          </ol>
+          <dl className="study-results-grid">
+            <div>
+              <dt>Unique views</dt>
+              <dd>
+                74% <span aria-hidden="true">→</span> 77%
+              </dd>
+              <p>Share of traffic that is unique</p>
+            </div>
+            <div>
+              <dt>Avg. attention</dt>
+              <dd>
+                2.75 <span aria-hidden="true">→</span> 3.3 min
+              </dd>
+              <p>More time spent in the experience</p>
+            </div>
+            <div>
+              <dt>On-page events</dt>
+              <dd>+50%</dd>
+              <p>More clicking, zooming, and interacting</p>
+            </div>
+          </dl>
+          <dl className="study-results-grid">
+            <div>
+              <dt>Interactions</dt>
+              <dd>2,467</dd>
+              <p>Total post-event engagements</p>
+            </div>
+            <div>
+              <dt>Unique emails</dt>
+              <dd>1,628</dd>
+              <p>Reach for an experiential product</p>
+            </div>
+            <div>
+              <dt>Returned</dt>
+              <dd>25.6%</dd>
+              <p>416 people came back more than once</p>
+            </div>
+          </dl>
+          <div className="study-results-notes">
+            <article>
+              <p className="study-label">Repeat usage</p>
+              <p>
+                One user returned for 58 interactions. Repeat behavior points to replay and sharing,
+                not just searching or buying. The experience has value beyond a single visit.
+              </p>
+            </article>
+            <article>
+              <p className="study-label">Where they go next</p>
+              <p>
+                Among return visitors, 43% revisited the same seat only (re-viewing or re-sharing
+                themselves). 57% explored multiple locations (friends, family, or the wider crowd).
+                That mix is personal identification and exploratory curiosity in the same product.
+              </p>
+            </article>
+          </div>
         </div>
 
         <div className="study-close">
           <article>
             <p className="study-label">What shipped</p>
             <ul>
-              <li>Event header + camera dock</li>
-              <li>Find-your-seat, capture, gallery</li>
-              <li>Postcard edit / save / share / QR</li>
-              <li>Side menu for secondary actions</li>
-              <li>Shop — product, personalize from Fancam, cart</li>
+              <li>Mobile-first viewer sequence: find, capture, keep, share</li>
+              <li>Responsive Find a Fancam discovery experience</li>
+              <li>Vue admin modules for panorama, moments, events, and theming</li>
+              <li>Reusable theme tokens so new events launch without bespoke styling</li>
+              <li>In-event shop: personalize, cart, checkout, and reporting</li>
             </ul>
           </article>
           <article>
-            <p className="study-label">Reflection</p>
+            <p className="study-label">Why it mattered</p>
             <p>
-              The unlock wasn’t one screen — it was naming the product: a camera for the crowd,
-              with shop as a peer surface. Next time I’d instrument find-seat vs. capture vs. shop
-              entry earlier so prioritization for the next season is argued with behavior, not only
-              craft.
+              Designing and building it end to end meant the redesign survived production instead of
+              stalling at handoff. Client data shows deeper sessions, strong post-event reach, and
+              meaningful repeat usage (about one in four fans came back), which is what you want from
+              a find, capture, and share loop. Reusable theming also made the next event cheaper to
+              launch.
             </p>
           </article>
         </div>
