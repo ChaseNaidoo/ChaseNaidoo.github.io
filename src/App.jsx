@@ -271,7 +271,7 @@ export default function App() {
                 <p className="hero-name">Cameron Chase Naidoo</p>
                 <p className="hero-subtitle">Product Designer &amp; Front-end Engineer</p>
                 <p className="hero-tagline">
-                  I design AI and product experiences, then ship them in code.
+                  Designed end to end. Ready to build.
                 </p>
               </div>
               <Suspense
@@ -483,11 +483,9 @@ export default function App() {
         <section id="about" className="content-section about-section">
           <div className="about-inner">
             <p className="about-kicker">About</p>
-            <h2>Product designer who can ship the interface</h2>
+            <h2>The whole experience. Ready for the build.</h2>
             <p className="about-lede">
-              I design AI and product experiences from research through high-fidelity UI, then implement them
-              in code. That mix means I can sit with product, talk fluently with engineering, and take ideas
-              further than a handoff.
+              I design end to end with the software already in mind. So the handoff just works.
             </p>
 
             <div className="about-grid">
@@ -498,41 +496,39 @@ export default function App() {
                     <p className="about-role">Product Design &amp; Front-end</p>
                     <p className="about-meta">Fancam / June 2025 – Present</p>
                     <p>
-                      Leading the end-to-end UX redesign of Fancam’s live NFL experience across
-                      viewer, camera, postcards, and shop, then shipping the interface on existing
-                      architecture with engineering.
+                      Redesigning Fancam’s live-event experience across viewer, camera, postcards,
+                      and shop, then shipping it into the existing product with engineering.
                     </p>
                   </li>
                   <li>
                     <p className="about-role">Product Design, AI Automation</p>
                     <p className="about-meta">InLogic / November 2024 – June 2025</p>
                     <p>
-                      Designed AI product experiences including Balmer Agency’s Business Acceleration
-                      Discovery assistant, from conversation flow and information architecture through
-                      high-fidelity UI.
+                      Designed and built Balmer Agency’s Business Acceleration Discovery: guided chat
+                      into a ranked report and PDF, from conversation flow through React UI.
                     </p>
                   </li>
                   <li className="about-timeline-pivot">
                     <p className="about-role">Earlier: science and lab work</p>
                     <p>
-                      Before design and code, I worked in QC and research labs. That is where I
-                      learned to test against a standard, document what happened, and trust
-                      evidence over opinion. It is still how I approach product decisions.
+                      Before design and code, I worked in QC and research labs. That taught me to test
+                      against a standard, write things down, and trust evidence. Still how I make
+                      product decisions.
                     </p>
                   </li>
                   <li>
                     <p className="about-role">Quality Controller</p>
                     <p className="about-meta">Liwayway Food South Africa / March 2022 – August 2022</p>
                     <p>
-                      Validated product performance against standards, monitored process quality, and produced
-                      data capture and reporting.
+                      Checked product against standards, watched process quality, and kept the data
+                      clean enough to act on.
                     </p>
                   </li>
                   <li>
                     <p className="about-role">Laboratory Assistant</p>
                     <p className="about-meta">Tshwane University of Technology / January 2021 – January 2022</p>
                     <p>
-                      Prepared and calibrated lab instruments, and supported sample collection, labeling, and
+                      Prepared instruments and supported sample collection, labeling, and
                       documentation for analysis.
                     </p>
                   </li>
@@ -544,16 +540,16 @@ export default function App() {
                   <h3>How I work</h3>
                   <ul className="about-list">
                     <li>
-                      <p className="about-role">Design first</p>
-                      <p className="about-meta">UX strategy, flows, IA, interaction, visual hierarchy</p>
+                      <p className="about-role">Design the whole path</p>
+                      <p className="about-meta">Research, flows, IA, interaction, high-fidelity UI</p>
                     </li>
                     <li>
-                      <p className="about-role">Build when it matters</p>
-                      <p className="about-meta">React, HTML/CSS, prototypes that survive engineering</p>
+                      <p className="about-role">Think in software</p>
+                      <p className="about-meta">React, HTML/CSS, prototypes that survive the handoff</p>
                     </li>
                     <li>
-                      <p className="about-role">Ship with constraints</p>
-                      <p className="about-meta">Existing architecture, AI workflows, measurable outcomes</p>
+                      <p className="about-role">Ship inside constraints</p>
+                      <p className="about-meta">Live products, existing architecture, clear outcomes</p>
                     </li>
                   </ul>
                 </article>
