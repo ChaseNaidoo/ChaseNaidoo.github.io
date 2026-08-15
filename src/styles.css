@@ -1507,12 +1507,32 @@ select:focus-visible,
   color: color-mix(in srgb, var(--lime) 70%, var(--gray));
 }
 
-.about-timeline p:last-child {
+.about-timeline li > p:not(.about-role):not(.about-meta) {
   margin: 0.45rem 0 0;
   max-width: none;
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
   line-height: 1.55;
+}
+
+.about-duties {
+  margin: 0.55rem 0 0;
+  padding: 0 0 0 1.05rem;
+  list-style: disc;
+  display: grid;
+  gap: 0.28rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.about-section .about-timeline .about-duties li {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.about-section .about-timeline .about-duties li::before {
+  content: none;
 }
 
 .about-list {

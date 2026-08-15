@@ -1,6 +1,6 @@
 # Cameron Chase Naidoo — Portfolio
 
-Personal portfolio for Cameron Chase Naidoo, a product designer and front-end engineer. Built as a
+Personal portfolio for Cameron Chase Naidoo, a product designer and engineer. Built as a
 React single-page app with a WebGL hero and three long-form case studies.
 
 Live: https://chasenaidoo.github.io

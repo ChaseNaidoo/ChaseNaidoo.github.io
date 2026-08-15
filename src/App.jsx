@@ -269,7 +269,7 @@ export default function App() {
               <div className="hero-lede">
                 <h1 className="hero-title sr-only">Where art meets engineering</h1>
                 <p className="hero-name">Cameron Chase Naidoo</p>
-                <p className="hero-subtitle">Product Designer &amp; Front-end Engineer</p>
+                <p className="hero-subtitle">Product Designer &amp; Engineer</p>
                 <p className="hero-tagline">
                   Designed end to end. Ready to build.
                 </p>
@@ -493,21 +493,31 @@ export default function App() {
                 <h3>Experience</h3>
                 <ul className="about-timeline">
                   <li>
-                    <p className="about-role">Product Design &amp; Front-end</p>
+                    <p className="about-role">Product Design &amp; Engineering</p>
                     <p className="about-meta">Fancam / June 2025 – Present</p>
                     <p>
-                      Redesigning Fancam’s live-event experience across viewer, camera, postcards,
-                      and shop, then shipping it into the existing product with engineering.
+                      Leading the redesign of Fancam’s live-event product, then shipping it into
+                      production.
                     </p>
+                    <ul className="about-duties">
+                      <li>Designed the fan experience across viewer, camera, postcards, and shop</li>
+                      <li>Built and shipped UI in the existing Vue / Less stack</li>
+                      <li>Extended the Node/Express app with admin tools, theming, and APIs</li>
+                      <li>Shipped live releases on existing architecture with the team</li>
+                    </ul>
                   </li>
                   <li>
                     <p className="about-role">Product Design, AI Automation</p>
                     <p className="about-meta">InLogic / November 2024 – June 2025</p>
                     <p>
-                      Designed AI product experiences for client teams, from conversation flow and
-                      IA through high-fidelity UI and React when needed. Featured: Balmer Agency’s
-                      Business Acceleration Discovery (guided chat into ranked report and PDF).
+                      Designed AI product experiences for client teams. Featured: Balmer Agency’s
+                      Business Acceleration Discovery.
                     </p>
+                    <ul className="about-duties">
+                      <li>Shaped conversation flows, information architecture, and high-fidelity UI</li>
+                      <li>Built React interfaces when the handoff needed to be real</li>
+                      <li>Turned guided chat into a ranked report and PDF for Balmer</li>
+                    </ul>
                   </li>
                   <li className="about-timeline-pivot">
                     <p className="about-role">Earlier: science and lab work</p>
@@ -520,18 +530,22 @@ export default function App() {
                   <li>
                     <p className="about-role">Quality Controller</p>
                     <p className="about-meta">Liwayway Food South Africa / March 2022 – August 2022</p>
-                    <p>
-                      Checked product against standards, watched process quality, and kept the data
-                      clean enough to act on.
-                    </p>
+                    <p>Kept product quality measurable and easy to act on.</p>
+                    <ul className="about-duties">
+                      <li>Checked product performance against standards</li>
+                      <li>Monitored process quality on the line</li>
+                      <li>Captured and reported data for decisions</li>
+                    </ul>
                   </li>
                   <li>
                     <p className="about-role">Laboratory Assistant</p>
                     <p className="about-meta">Tshwane University of Technology / January 2021 – January 2022</p>
-                    <p>
-                      Prepared instruments and supported sample collection, labeling, and
-                      documentation for analysis.
-                    </p>
+                    <p>Supported day-to-day research lab work and documentation.</p>
+                    <ul className="about-duties">
+                      <li>Prepared and calibrated lab instruments</li>
+                      <li>Helped with sample collection and labeling</li>
+                      <li>Kept documentation clear for analysis</li>
+                    </ul>
                   </li>
                 </ul>
               </article>
@@ -542,11 +556,11 @@ export default function App() {
                   <ul className="about-list">
                     <li>
                       <p className="about-role">Design the whole path</p>
-                      <p className="about-meta">Research, flows, IA, interaction, high-fidelity UI</p>
+                      <p className="about-meta">Research, flows, information architecture, interaction, high-fidelity UI</p>
                     </li>
                     <li>
                       <p className="about-role">Think in software</p>
-                      <p className="about-meta">React, HTML/CSS, prototypes that survive the handoff</p>
+                      <p className="about-meta">React, Vue, Node, HTML/CSS, prototypes that survive the handoff</p>
                     </li>
                     <li>
                       <p className="about-role">Ship inside constraints</p>
@@ -574,17 +588,17 @@ export default function App() {
                 </article>
 
                 <article className="about-block">
-                  <h3>Tools</h3>
+                  <h3>Stack</h3>
                   <ul className="about-skills">
                     <li>Figma</li>
-                    <li>UX strategy</li>
-                    <li>Interaction design</li>
-                    <li>Information architecture</li>
                     <li>React</li>
+                    <li>Vue</li>
                     <li>JavaScript</li>
                     <li>HTML / CSS</li>
-                    <li>Python</li>
+                    <li>Less</li>
+                    <li>Node / Express</li>
                     <li>n8n</li>
+                    <li>Python</li>
                     <li>SQL</li>
                   </ul>
                 </article>

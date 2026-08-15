@@ -10,7 +10,7 @@ export const CASE_STUDIES = [
     period: "2025–Present",
     title: "Fancam Event Experience",
     lede:
-      "Designed the fan-facing experience across viewer, camera, postcards, and shop, then shipped it on the live platform alongside responsive discovery, theming, and commerce tooling.",
+      "Designed the fan-facing experience across viewer, camera, postcards, and shop, then shipped it in the live Node/Express stack with Vue admin, theming, discovery, and supporting APIs.",
     outcome: "After launch, engaged fans went deeper: on-page interactions up 50%, with about 1 in 4 returning.",
     image: fancamAfter,
     imageAlt: "Redesigned Fancam viewer with event header, in-crowd tags, and camera dock",

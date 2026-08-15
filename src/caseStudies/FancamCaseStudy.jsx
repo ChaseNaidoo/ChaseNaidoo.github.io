@@ -39,7 +39,7 @@ const DECISIONS = [
     body:
       "Find, capture, and keep each get their own moment. In camera mode the shutter is the only primary control and everything else steps back.",
     trade:
-      "Fewer options visible at once, which is the point on a phone held one-handed in a stadium."
+      "Fewer options visible at once, which matches how mobile apps already work: one clear action, then the next."
   },
   {
     title: "Theming as tokens, not per-event CSS",
@@ -131,14 +131,14 @@ export default function FancamCaseStudy({ study }) {
         <p className="study-lede">
           Fancam turns a gigapixel crowd photo into an interactive event product: find your seat,
           capture the moment, share it, buy the memento. I led the fan-facing redesign of the viewer,
-          camera, postcards, and shop, then built it into the live platform alongside the theming and
-          commerce tooling that lets the team run it.
+          camera, postcards, and shop, then shipped it in the live Node/Express stack with Vue admin,
+          theming, discovery, and supporting APIs.
         </p>
 
         <dl className="study-meta">
           <div>
             <dt>Role</dt>
-            <dd>Product design + front-end</dd>
+            <dd>Product design + engineering</dd>
           </div>
           <div>
             <dt>Scope</dt>
@@ -211,11 +211,11 @@ export default function FancamCaseStudy({ study }) {
           <p className="study-label">My role</p>
           <p>
             <strong>I designed the fan experience and built it into the live product.</strong>{" "}
-            I owned the viewer, camera, postcard, and shop direction, then implemented it in the
-            existing stack: Vue admin modules, Less theming, krpano-facing config, and the commerce
-            tooling around Shopify and Printify. Because the same person designed and shipped it,
-            decisions were tested against real data models and release constraints instead of getting
-            lost in handoff.
+            I owned the viewer, camera, postcard, and shop direction, then shipped it in the
+            existing Node/Express stack: Vue admin modules, Less theming, krpano-facing config,
+            supporting APIs and models, and the in-product shop surfaces. Because the same person
+            designed and shipped it, decisions were tested against real data models and release
+            constraints instead of getting lost in handoff.
           </p>
         </aside>
 
@@ -346,6 +346,7 @@ export default function FancamCaseStudy({ study }) {
               <li>Responsive Find a Fancam discovery experience</li>
               <li>Vue admin modules for panorama, moments, events, and theming</li>
               <li>Reusable theme tokens so new events launch without bespoke styling</li>
+              <li>Node/Express API and model work for discovery, user-gate, and shop stats</li>
               <li>In-event shop: personalize, cart, checkout, and reporting</li>
             </ul>
           </article>
