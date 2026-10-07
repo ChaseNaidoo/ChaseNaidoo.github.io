@@ -5,11 +5,12 @@ const INTERACTIVE_SELECTOR =
   "a, button, [role='button'], [role='slider'], [role='tab'], input, textarea, select, label[for], summary, .ba-slider";
 const BASE_DIAMETER = 18;
 const HOVER_SCALE = 2.35;
+const SCALE_LERP = 0.18;
 
 export default function CustomCursor() {
   const cursorRef = useRef(null);
   const posRef = useRef({ x: 0, y: 0 });
-  const scaleRef = useRef(1);
+  const scaleRef = useRef({ current: 1, target: 1 });
   const domHoverRef = useRef(false);
   const visibleRef = useRef(false);
   const rafRef = useRef(0);
@@ -33,22 +34,22 @@ export default function CustomCursor() {
   useEffect(() => {
     if (!enabled) return;
 
+    const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const cursor = cursorRef.current;
     if (!cursor) return;
 
     const paint = () => {
-      cursor.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0) translate(-50%, -50%) scale(${scaleRef.current})`;
+      cursor.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0) translate(-50%, -50%) scale(${scaleRef.current.current})`;
     };
 
-    const syncHover = () => {
+    const syncHoverState = () => {
       const arrow = getCarouselArrow();
       const hovering = Boolean(arrow) || domHoverRef.current || isHeroPlusCursorActive();
-      scaleRef.current = hovering ? HOVER_SCALE : 1;
+      scaleRef.current.target = hovering ? HOVER_SCALE : 1;
       cursor.classList.toggle("custom-cursor--hover", hovering && !arrow);
       cursor.classList.toggle("custom-cursor--arrow", Boolean(arrow));
       cursor.classList.toggle("custom-cursor--arrow-left", arrow === "left");
       cursor.classList.toggle("custom-cursor--arrow-right", arrow === "right");
-      paint();
     };
 
     const onPointerMove = (event) => {
@@ -58,21 +59,21 @@ export default function CustomCursor() {
       }
       posRef.current.x = event.clientX;
       posRef.current.y = event.clientY;
-      syncHover();
+      paint();
     };
 
     const onPointerLeave = () => {
       visibleRef.current = false;
       domHoverRef.current = false;
       cursor.classList.remove("custom-cursor--visible");
-      syncHover();
+      syncHoverState();
     };
 
     const onPointerOver = (event) => {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest(INTERACTIVE_SELECTOR)) {
         domHoverRef.current = true;
-        syncHover();
+        syncHoverState();
       }
     };
 
@@ -85,11 +86,15 @@ export default function CustomCursor() {
         return;
       }
       domHoverRef.current = false;
-      syncHover();
+      syncHoverState();
     };
 
     const tick = () => {
-      syncHover();
+      syncHoverState();
+      const scaleEase = mqReduced.matches ? 1 : SCALE_LERP;
+      scaleRef.current.current +=
+        (scaleRef.current.target - scaleRef.current.current) * scaleEase;
+      paint();
       rafRef.current = requestAnimationFrame(tick);
     };
 
