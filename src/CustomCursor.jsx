@@ -5,16 +5,12 @@ const INTERACTIVE_SELECTOR =
   "a, button, [role='button'], [role='slider'], [role='tab'], input, textarea, select, label[for], summary, .ba-slider";
 const BASE_DIAMETER = 18;
 const HOVER_SCALE = 2.35;
-const FOLLOW_LERP = 0.16;
-const SCALE_LERP = 0.14;
 
 export default function CustomCursor() {
   const cursorRef = useRef(null);
-  const targetRef = useRef({ x: 0, y: 0 });
-  const currentRef = useRef({ x: 0, y: 0 });
-  const scaleRef = useRef({ current: 1, target: 1 });
+  const posRef = useRef({ x: 0, y: 0 });
+  const scaleRef = useRef(1);
   const domHoverRef = useRef(false);
-  const arrowRef = useRef(null);
   const visibleRef = useRef(false);
   const rafRef = useRef(0);
   const [enabled, setEnabled] = useState(false);
@@ -37,30 +33,32 @@ export default function CustomCursor() {
   useEffect(() => {
     if (!enabled) return;
 
-    const mqReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const cursor = cursorRef.current;
     if (!cursor) return;
 
+    const paint = () => {
+      cursor.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0) translate(-50%, -50%) scale(${scaleRef.current})`;
+    };
+
     const syncHover = () => {
       const arrow = getCarouselArrow();
-      arrowRef.current = arrow;
       const hovering = Boolean(arrow) || domHoverRef.current || isHeroPlusCursorActive();
-      scaleRef.current.target = hovering ? HOVER_SCALE : 1;
+      scaleRef.current = hovering ? HOVER_SCALE : 1;
       cursor.classList.toggle("custom-cursor--hover", hovering && !arrow);
       cursor.classList.toggle("custom-cursor--arrow", Boolean(arrow));
       cursor.classList.toggle("custom-cursor--arrow-left", arrow === "left");
       cursor.classList.toggle("custom-cursor--arrow-right", arrow === "right");
+      paint();
     };
 
     const onPointerMove = (event) => {
       if (!visibleRef.current) {
-        currentRef.current.x = event.clientX;
-        currentRef.current.y = event.clientY;
         visibleRef.current = true;
         cursor.classList.add("custom-cursor--visible");
       }
-      targetRef.current.x = event.clientX;
-      targetRef.current.y = event.clientY;
+      posRef.current.x = event.clientX;
+      posRef.current.y = event.clientY;
+      syncHover();
     };
 
     const onPointerLeave = () => {
@@ -92,16 +90,6 @@ export default function CustomCursor() {
 
     const tick = () => {
       syncHover();
-      const follow = mqReduced.matches ? 1 : FOLLOW_LERP;
-      const scaleEase = mqReduced.matches ? 1 : SCALE_LERP;
-
-      currentRef.current.x += (targetRef.current.x - currentRef.current.x) * follow;
-      currentRef.current.y += (targetRef.current.y - currentRef.current.y) * follow;
-      scaleRef.current.current +=
-        (scaleRef.current.target - scaleRef.current.current) * scaleEase;
-
-      cursor.style.transform = `translate3d(${currentRef.current.x}px, ${currentRef.current.y}px, 0) translate(-50%, -50%) scale(${scaleRef.current.current})`;
-
       rafRef.current = requestAnimationFrame(tick);
     };
 
